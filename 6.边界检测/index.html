@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Canvas Zoom and Pan with Bounce Back</title>
+    <style>
+      canvas {
+        border: 1px solid black;
+        cursor: grab;
+      }
+      canvas:active {
+        cursor: grabbing;
+      }
+    </style>
+  </head>
+  <body>
+    <canvas id="myCanvas" width="800" height="600"></canvas>
+
+    <script>
+      const canvas = document.getElementById("myCanvas");
+      const ctx = canvas.getContext("2d");
+
+      let scale = 1;
+      let originX = 0;
+      let originY = 0;
+      let dragStart = null;
+      let dragged = false;
+
+      canvas.addEventListener("wheel", function (event) {
+        event.preventDefault();
+
+        const zoomFactor = 1.1;
+        const mouseX = event.offsetX;
+        const mouseY = event.offsetY;
+
+        const zoomDirection = event.deltaY > 0 ? 1 : -1;
+        const newScale =
+          scale * (zoomDirection > 0 ? 1 / zoomFactor : zoomFactor);
+
+        originX = mouseX - (mouseX - originX) * (newScale / scale);
+        originY = mouseY - (mouseY - originY) * (newScale / scale);
+
+        scale = newScale;
+        draw();
+      });
+
+      canvas.addEventListener("mousedown", function (event) {
+        dragStart = { x: event.offsetX - originX, y: event.offsetY - originY };
+        dragged = false;
+      });
+
+      canvas.addEventListener("mousemove", function (event) {
+        if (dragStart) {
+          dragged = true;
+          originX = event.offsetX - dragStart.x;
+          originY = event.offsetY - dragStart.y;
+
+          const minX = canvas.width - 200 * scale;
+          const minY = canvas.height - 150 * scale;
+
+          if (originX > 0) {
+            originX = 0;
+          } else if (originX < minX) {
+            originX = minX;
+          }
+
+          if (originY > 0) {
+            originY = 0;
+          } else if (originY < minY) {
+            originY = minY;
+          }
+
+          draw();
+        }
+      });
+
+      canvas.addEventListener("mouseup", function () {
+        dragStart = null;
+      });
+
+      function draw() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        ctx.save();
+        ctx.translate(originX, originY);
+        ctx.scale(scale, scale);
+
+        ctx.fillStyle = "lightblue";
+        ctx.fillRect(100, 100, 200, 150);
+
+        ctx.restore();
+      }
+
+      draw();
+    </script>
+  </body>
+</html>

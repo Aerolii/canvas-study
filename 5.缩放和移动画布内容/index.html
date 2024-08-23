@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Canvas Zoom and Pan</title>
+    <style>
+      canvas {
+        border: 1px solid black;
+        cursor: grab;
+      }
+      canvas:active {
+        cursor: grabbing;
+      }
+    </style>
+  </head>
+  <body>
+    <canvas id="myCanvas"></canvas>
+
+    <script>
+      function getImageClientRect() {
+        return new Promise((resolve) => {
+          const img = new Image();
+          img.src = "./map.png";
+
+          img.onload = function () {
+            const width = img.width;
+            const height = img.height;
+            console.log("img :>> ", img);
+            // console.log(`Width: ${width}, Height: ${height}`);
+            resolve({ width, height, img });
+          };
+        });
+      }
+
+      const canvas = document.getElementById("myCanvas");
+      const deviceRatio = devicePixelRatio || 1;
+      const cw = 800;
+      const ch = 600;
+      canvas.style.width = cw + "px";
+      canvas.style.height = ch + "px";
+
+      canvas.width = cw * deviceRatio;
+      canvas.height = ch * deviceRatio;
+
+      const ctx = canvas.getContext("2d");
+
+      let scale = 1;
+      let originX = 0;
+      let originY = 0;
+      let dragStart = null;
+      let dragged = false;
+      let target = null;
+      let frameId = null;
+
+      let px = 0;
+      let py = 0;
+
+      document.addEventListener("mouseup", function (e) {
+        if (dragged && target) {
+          // 手动触发 mouseup 事件
+          const mouseUpEvent = new MouseEvent("mouseup", {
+            bubbles: false,
+            cancelable: false,
+            view: window,
+          });
+
+          canvas.dispatchEvent(mouseUpEvent);
+        }
+      });
+
+      canvas.addEventListener("wheel", function (event) {
+        event.preventDefault();
+
+        const zoomFactor = 1.1;
+        const mouseX = event.offsetX;
+        const mouseY = event.offsetY;
+
+        const zoomDirection = event.deltaY > 0 ? 1 : -1;
+        const newScale = Math.max(
+          1,
+          scale * (zoomDirection > 0 ? 1 / zoomFactor : zoomFactor)
+        );
+
+        originX = mouseX - (mouseX - originX) * (newScale / scale);
+        originY = mouseY - (mouseY - originY) * (newScale / scale);
+
+        scale = newScale;
+
+        draw();
+      });
+
+      canvas.addEventListener("mousedown", function (event) {
+        dragStart = { x: event.offsetX - originX, y: event.offsetY - originY };
+        dragged = false;
+        target = event.target;
+      });
+
+      canvas.addEventListener("mousemove", function (event) {
+        if (dragStart) {
+          dragged = true;
+          originX = event.offsetX - dragStart.x;
+          originY = event.offsetY - dragStart.y;
+
+          // console.log("originX, originY :>> ", originX, originY);
+
+          draw();
+        }
+      });
+
+      canvas.addEventListener("mouseup", function (event) {
+        target = null;
+        dragStart = null;
+      });
+
+      function draw() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = "lightgray";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.save();
+        ctx.translate(originX, originY);
+        ctx.scale(scale, scale);
+        ctx.drawImage(drawImage, 0, 0, cW, cH);
+
+        ctx.beginPath();
+        ctx.fillStyle = "blue";
+        ctx.arc(60 + px, 120 + py, 10, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+
+        if (frameId) {
+          cancelAnimationFrame(frameId);
+        }
+        frameId = requestAnimationFrame(draw);
+      }
+
+      let drawImage = null;
+      let imgW = 0;
+      let imgH = 0;
+      let cW = 0;
+      let cH = 0;
+
+      function getDrawClientRect() {
+        // const min =
+        const oriRatio = imgW / imgH;
+        const canvasRatio = canvas.width / canvas.height;
+
+        if (canvasRatio > oriRatio) {
+          const w = imgW / (imgH / canvas.height);
+          // return { w, h: canvas.height };
+          cW = w;
+          cH = canvas.height;
+        } else {
+          const h = imgH / imgW / canvas.width;
+          return { h, w: canvas.width };
+        }
+      }
+
+      async function init() {
+        const { img, width, height } = await getImageClientRect();
+
+        drawImage = img;
+        imgW = width;
+        imgH = height;
+
+        getDrawClientRect();
+        draw();
+        // requestAnimationFrame(draw);
+      }
+
+      init();
+
+      // requestAnimationFrame(() => {
+      //   console.log("1 :>> ", 1);
+      // });
+    </script>
+  </body>
+</html>
