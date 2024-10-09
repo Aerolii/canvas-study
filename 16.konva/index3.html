@@ -2,7 +2,7 @@
 <html lang="zh-CN">
   <head>
     <meta charset="UTF-8" />
-    <title>Konva 地图拖拽与缩放（带标记）示例</title>
+    <title>Konva 地图拖拽与缩放</title>
     <!-- 引入 Konva.js -->
     <script src="https://cdn.jsdelivr.net/npm/konva@8.4.3/konva.min.js"></script>
     <style>
@@ -60,8 +60,6 @@
 
       const startPosition = translatePoint(startPose.x, startPose.y);
 
-      console.log("startPosition", startPosition);
-
       // 设置舞台（画布）大小
       const width = 800; // 画布宽度
       const height = 600; // 画布高度
@@ -86,8 +84,14 @@
         draggable: true, // 允许拖拽整个地图组
         scaleX: 1,
         scaleY: 1,
+        name: "mapGroup",
       });
       layer.add(mapGroup);
+
+      mapGroup.on("dragend", () => {
+        console.log(1);
+        keepMapGroupWithinStageWithAnimation(mapGroup, stage);
+      });
 
       // 加载地图图片
       const mapImage = new Image();
@@ -160,29 +164,78 @@
       };
 
       const carImage = new Image();
+      let timer = null;
       carImage.src = "./small-car.png";
       carImage.onload = function () {
-        // 创建 Konva 图片对象
-        const konvaMap = new Konva.Image({
-          image: carImage,
+        let carGroup = createCar(carImage);
+        // 将地图图片添加到组中
+        mapGroup.add(carGroup);
+        layer.draw();
+
+        clearInterval(timer);
+
+        let i = 0;
+        timer = setInterval(() => {
+          console.log("i", i);
+          const point = point2[i];
+          const { x, y } = translatePoint(point.x, point.y);
+          console.log("x,y", x, y);
+          startPosition.x = x;
+          startPosition.y = y;
+
+          // carGroup.rotation(carGroup.rotation() + 10);
+          new Konva.Tween({
+            node: carGroup,
+            duration: 1, // 动画持续时间（秒）
+            x: startPosition.x,
+            y: startPosition.y,
+            easing: Konva.Easings.Linear, // 匀速动画
+          }).play();
+
+          keepRectangleWithinStageWithAnimation(carGroup, stage);
+          layer.draw();
+
+          i++;
+        }, 1000);
+      };
+
+      function createCar(carImage) {
+        const carGroup = new Konva.Group({
+          name: "carGroup",
           x: startPosition.x,
           y: startPosition.y,
-          width: (carImage.width / position.scale) * 2,
-          height: (carImage.height / position.scale) * 2,
-          offset: {
-            x: 0,
-            y: 0,
-          },
-          rotation: startPose.theta,
+          width: 28,
+          height: 18,
+          rotation: 90,
         });
 
-        console.log(startPose.theta * Math.PI * 2);
+        const carBackground = new Konva.Rect({
+          width: 18,
+          height: 26,
+          fill: "green",
+          opacity: 0.5,
+          offset: {
+            x: 9,
+            y: 13,
+          },
+        });
 
-        // 将地图图片添加到组中
-        mapGroup.add(konvaMap);
+        // 创建 Konva 图片对象
+        const carDirection = new Konva.Image({
+          image: carImage,
+          width: 20,
+          height: 20,
+          offset: {
+            x: 10,
+            y: 10,
+          },
+        });
 
-        layer.draw();
-      };
+        carGroup.add(carBackground);
+        carGroup.add(carDirection);
+
+        return carGroup;
+      }
 
       function createLine(points) {
         const strokeColor = "rgba(0,0,155,0.7)";
@@ -230,7 +283,6 @@
         const markerGroup = new Konva.Group({
           x: x,
           y: y,
-          draggable: true,
           name: "marker",
         });
 
@@ -280,50 +332,53 @@
       }
 
       /**
+       *
        * 检查并调整标记位置，确保其在地图内，并使用动画回弹
        * @param {Konva.Group} marker - 需要检查的标记组
        */
-      function keepMarkerWithinMap(marker) {
-        const mapImage = mapGroup.findOne("Image");
-        const mapScale = mapGroup.scaleX(); // 假设缩放比例一致
-        const mapWidth = mapImage.width() * mapScale;
-        const mapHeight = mapImage.height() * mapScale;
 
-        const markerPos = marker.position();
-        const markerRadius = 10 * mapScale; // 圆形半径，考虑缩放
+      function keepMapGroupWithinStageWithAnimation(shape, stage) {
+        const { x: sx, y: sy } = getMapGroupInfo();
+      }
 
-        let newX = markerPos.x;
-        let newY = markerPos.y;
-        let needsAdjustment = false;
+      function getMapGroupInfo() {
+        const scale = Math.max(mapGroup.scaleX(), mapGroup.scaleY());
+        const width = mapGroup.width() * scale;
+        const height = mapGroup.height() * scale;
+        const x = mapGroup.x();
+        const y = mapGroup.y();
 
-        // 检查左边界
-        if (markerPos.x - markerRadius < 0) {
-          newX = markerRadius;
-          needsAdjustment = true;
-        }
-        // 检查右边界
-        if (markerPos.x + markerRadius > mapWidth) {
-          newX = mapWidth - markerRadius;
-          needsAdjustment = true;
-        }
-        // 检查上边界
-        if (markerPos.y - markerRadius < 0) {
-          newY = markerRadius;
-          needsAdjustment = true;
-        }
-        // 检查下边界
-        if (markerPos.y + markerRadius > mapHeight) {
-          newY = mapHeight - markerRadius;
-          needsAdjustment = true;
-        }
+        return { x, y };
+      }
 
-        if (needsAdjustment) {
-          // 创建一个Tween动画，将标记移动到新位置
+      /**
+       * 检查并调整圆形位置，确保其在舞台内，并使用动画回弹至中心
+       * @param {Konva.Circle} shape - 需要检查的圆形
+       * @param {Konva.Stage} stage - 舞台对象
+       */
+      function keepRectangleWithinStageWithAnimation(shape, stage) {
+        const scale = Math.max(mapGroup.scaleX(), mapGroup.scaleY());
+        const width = shape.width() * scale;
+        const height = shape.height() * scale;
+        const x = shape.x() * scale;
+        const y = shape.y() * scale;
+
+        const cw = layer.width();
+        const ch = layer.height();
+
+        const { x: sx, y: sy } = getMapGroupInfo();
+
+        const isInside =
+          x + sx >= 0 &&
+          x + width + sx <= cw &&
+          y + sy >= 0 &&
+          y + height + sy <= ch;
+
+        if (!isInside) {
           new Konva.Tween({
-            node: marker,
-            duration: 0.3, // 动画持续时间（秒）
-            x: newX,
-            y: newY,
+            node: mapGroup,
+            duration: 0.5, // 动画持续时间（秒）
+            x: mapGroup.x() - (x + sx - width),
             easing: Konva.Easings.EaseOut,
             onFinish: () => {
               layer.batchDraw();
@@ -351,8 +406,6 @@
           // 向上滚动，放大
           newScale *= scaleBy;
         }
-
-        console.log(initialScale);
 
         // 设置缩放的最小和最大值
         const minScale = initialScale;

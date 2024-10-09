@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Konva 矩形拖拽与缩放（带动画回弹至中心）示例</title>
+    <script src="https://cdn.jsdelivr.net/npm/konva@8.4.3/konva.min.js"></script>
+    <style>
+      body {
+        margin: 0;
+        padding: 0;
+        overflow: hidden;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        height: 100vh;
+        background-color: #f0f0f0;
+      }
+      #container {
+        border: 1px solid #ccc;
+        width: 800px;
+        height: 600px;
+        background-color: #fff;
+        position: relative;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="container"></div>
+
+    <script>
+      // 设置舞台大小
+      const width = 800; // 固定宽度
+      const height = 600; // 固定高度
+
+      // 创建舞台
+      const stage = new Konva.Stage({
+        container: "container",
+        width: width,
+        height: height,
+      });
+
+      // 创建图层
+      const layer = new Konva.Layer();
+      stage.add(layer);
+
+      // 创建矩形
+      const rectWidth = 100;
+      const rectHeight = 60;
+      const rectangle = new Konva.Rect({
+        x: stage.width() / 2 - rectWidth / 2,
+        y: stage.height() / 2 - rectHeight / 2,
+        width: rectWidth,
+        height: rectHeight,
+        fill: "lightgreen",
+        stroke: "green",
+        strokeWidth: 4,
+        draggable: true,
+        scaleX: 1,
+        scaleY: 1,
+      });
+
+      layer.add(rectangle);
+      layer.draw();
+
+      // 监听拖拽结束事件
+      rectangle.on("dragend", () => {
+        keepRectangleWithinStageWithAnimation(rectangle, stage);
+      });
+
+      // 监听缩放结束事件
+      rectangle.on("transformend", () => {
+        keepRectangleWithinStageWithAnimation(rectangle, stage);
+      });
+
+      /**
+       * 检查并调整矩形位置，确保其在舞台内，并使用动画回弹至中心
+       * @param {Konva.Rect} shape - 需要检查的矩形
+       * @param {Konva.Stage} stage - 舞台对象
+       */
+      function keepRectangleWithinStageWithAnimation(shape, stage) {
+        const scale = Math.max(shape.scaleX(), shape.scaleY());
+        const width = shape.width() * scale;
+        const height = shape.height() * scale;
+        const x = shape.x();
+        const y = shape.y();
+
+        // 判断矩形是否完全在舞台内
+        const isInside =
+          x >= 0 &&
+          x + width <= stage.width() &&
+          y >= 0 &&
+          y + height <= stage.height();
+
+        if (!isInside) {
+          // 创建一个Tween动画，将矩形移动回舞台中心
+          new Konva.Tween({
+            node: shape,
+            duration: 0.5, // 动画持续时间（秒）
+            x: stage.width() / 2 - (shape.width() * scale) / 2,
+            y: stage.height() / 2 - (shape.height() * scale) / 2,
+            easing: Konva.Easings.EaseOut,
+            onFinish: () => {
+              layer.batchDraw();
+            },
+          }).play();
+        }
+      }
+
+      // 实现缩放功能，通过鼠标滚轮
+      stage.on("wheel", (e) => {
+        e.evt.preventDefault();
+        const oldScaleX = rectangle.scaleX();
+        const oldScaleY = rectangle.scaleY();
+
+        // 缩放比例因子
+        const scaleBy = 1.05;
+        let newScaleX = oldScaleX;
+        let newScaleY = oldScaleY;
+
+        if (e.evt.deltaY > 0) {
+          // 向下滚动，缩小
+          newScaleX /= scaleBy;
+          newScaleY /= scaleBy;
+        } else {
+          // 向上滚动，放大
+          newScaleX *= scaleBy;
+          newScaleY *= scaleBy;
+        }
+
+        // 设置缩放的最小和最大值
+        const minScale = 0.5;
+        const maxScale = 3;
+
+        newScaleX = Math.max(minScale, Math.min(maxScale, newScaleX));
+        newScaleY = Math.max(minScale, Math.min(maxScale, newScaleY));
+
+        // 设置新的缩放
+        rectangle.scale({ x: newScaleX, y: newScaleY });
+
+        keepRectangleWithinStageWithAnimation(rectangle, stage);
+        layer.batchDraw();
+      });
+
+      // 限制最小大小
+      const minWidth = 50;
+      const minHeight = 30;
+      rectangle.on("scale", () => {
+        const scaleX = rectangle.scaleX();
+        const scaleY = rectangle.scaleY();
+        const currentWidth = rectangle.width() * scaleX;
+        const currentHeight = rectangle.height() * scaleY;
+
+        if (currentWidth < minWidth || currentHeight < minHeight) {
+          const correctedScaleX = Math.max(
+            minWidth / rectangle.width(),
+            scaleX
+          );
+          const correctedScaleY = Math.max(
+            minHeight / rectangle.height(),
+            scaleY
+          );
+          rectangle.scale({ x: correctedScaleX, y: correctedScaleY });
+        }
+      });
+
+      // 可选：显示当前大小和位置
+      const infoLayer = new Konva.Layer();
+      stage.add(infoLayer);
+
+      const infoText = new Konva.Text({
+        x: 10,
+        y: 10,
+        text: getInfoText(),
+        fontSize: 16,
+        fill: "black",
+      });
+
+      infoLayer.add(infoText);
+      infoLayer.draw();
+
+      // 更新信息文本
+      function getInfoText() {
+        const scaleX = rectangle.scaleX().toFixed(2);
+        const scaleY = rectangle.scaleY().toFixed(2);
+        const width = (rectangle.width() * scaleX).toFixed(2);
+        const height = (rectangle.height() * scaleY).toFixed(2);
+        return `位置: (${rectangle.x().toFixed(2)}, ${rectangle
+          .y()
+          .toFixed(2)})\n宽度: ${width}\n高度: ${height}`;
+      }
+
+      function updateInfo() {
+        infoText.text(getInfoText());
+        infoLayer.batchDraw();
+      }
+
+      // 更新信息文本在拖拽和缩放时
+      rectangle.on("dragmove", updateInfo);
+      rectangle.on("scale", updateInfo);
+
+      // 调整舞台大小时响应（如果需要）
+      window.addEventListener("resize", () => {
+        // 如果舞台大小是固定的，可以忽略此部分
+        // 如果舞台大小是动态的，可以调整舞台大小并确保矩形在可视范围内
+        /*
+      const newWidth = window.innerWidth * 0.8;
+      const newHeight = window.innerHeight * 0.8;
+      stage.width(newWidth);
+      stage.height(newHeight);
+      keepRectangleWithinStageWithAnimation(rectangle, stage);
+      layer.batchDraw();
+      infoLayer.batchDraw();
+      */
+      });
+    </script>
+  </body>
+</html>

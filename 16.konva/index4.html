@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Konva 圆形拖拽与缩放（带动画回弹至中心）</title>
+    <script src="https://cdn.jsdelivr.net/npm/konva@8.4.3/konva.min.js"></script>
+    <style>
+      body {
+        margin: 0;
+        padding: 0;
+        overflow: hidden;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        height: 100vh;
+        background-color: #f0f0f0;
+      }
+      #container {
+        border: 1px solid #ccc;
+        width: 800px;
+        height: 600px;
+        background-color: #fff;
+        position: relative;
+      }
+      /* 可选：样式用于显示轨迹 */
+      #container canvas {
+        position: absolute;
+        top: 0;
+        left: 0;
+        z-index: 1;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="container"></div>
+
+    <script>
+      // 设置舞台大小
+      const width = 800; // 固定宽度
+      const height = 600; // 固定高度
+
+      // 创建舞台
+      const stage = new Konva.Stage({
+        container: "container",
+        width: width,
+        height: height,
+      });
+
+      // 创建图层
+      const layer = new Konva.Layer();
+      stage.add(layer);
+
+      // 创建轨迹图层（可选）
+      const pathLayer = new Konva.Layer();
+      stage.add(pathLayer);
+
+      // 创建圆形
+      const circle = new Konva.Circle({
+        x: stage.width() / 2,
+        y: stage.height() / 2,
+        radius: 50,
+        fill: "lightblue",
+        stroke: "blue",
+        strokeWidth: 4,
+        draggable: true,
+        scaleX: 1,
+        scaleY: 1,
+      });
+
+      layer.add(circle);
+      layer.draw();
+
+      // 创建轨迹路径（可选）
+      const path = new Konva.Line({
+        points: [circle.x(), circle.y()],
+        stroke: "red",
+        strokeWidth: 2,
+        lineCap: "round",
+        lineJoin: "round",
+      });
+      pathLayer.add(path);
+      pathLayer.draw();
+
+      // 记录轨迹点（可选）
+      function addPoint(x, y) {
+        const newPoints = path.points().concat([x, y]);
+        path.points(newPoints);
+        pathLayer.batchDraw();
+      }
+
+      // 初始位置
+      addPoint(circle.x(), circle.y());
+
+      // 监听拖拽结束事件
+      circle.on("dragend", () => {
+        keepCircleWithinStageWithAnimation(circle, stage);
+      });
+
+      // 监听缩放结束事件
+      circle.on("transformend", () => {
+        keepCircleWithinStageWithAnimation(circle, stage);
+      });
+
+      /**
+       * 检查并调整圆形位置，确保其在舞台内，并使用动画回弹至中心
+       * @param {Konva.Circle} shape - 需要检查的圆形
+       * @param {Konva.Stage} stage - 舞台对象
+       */
+      function keepCircleWithinStageWithAnimation(shape, stage) {
+        const scale = Math.max(shape.scaleX(), shape.scaleY());
+        const radius = shape.radius() * scale;
+        const x = shape.x();
+        const y = shape.y();
+
+        // 判断圆形的中心是否在舞台内
+        const isInside =
+          x - radius >= 0 &&
+          x + radius <= stage.width() &&
+          y - radius >= 0 &&
+          y + radius <= stage.height();
+
+        if (!isInside) {
+          // 创建一个Tween动画，将圆形移动回舞台中心
+          new Konva.Tween({
+            node: shape,
+            duration: 0.5, // 动画持续时间（秒）
+            x: stage.width() / 2,
+            y: stage.height() / 2,
+            easing: Konva.Easings.EaseOut,
+            onFinish: () => {
+              layer.batchDraw();
+              // 可选：记录回弹到中心的轨迹
+              addPoint(shape.x(), shape.y());
+            },
+          }).play();
+        }
+      }
+
+      // 实现缩放功能，通过鼠标滚轮
+      stage.on("wheel", (e) => {
+        e.evt.preventDefault();
+        const oldScale = circle.scaleX();
+
+        // 缩放比例因子
+        const scaleBy = 1.05;
+        let newScale = oldScale;
+
+        if (e.evt.deltaY > 0) {
+          // 向下滚动，缩小
+          newScale /= scaleBy;
+        } else {
+          // 向上滚动，放大
+          newScale *= scaleBy;
+        }
+
+        // 设置缩放的最小和最大值
+        const minScale = 0.5;
+        const maxScale = 3;
+
+        newScale = Math.max(minScale, Math.min(maxScale, newScale));
+
+        // 设置新的缩放
+        circle.scale({ x: newScale, y: newScale });
+
+        // 可选：记录缩放后的轨迹
+        addPoint(circle.x(), circle.y());
+
+        keepCircleWithinStageWithAnimation(circle, stage);
+        layer.batchDraw();
+      });
+
+      // 限制最小半径
+      const minRadius = 20;
+      circle.on("scale", () => {
+        const scale = Math.max(circle.scaleX(), circle.scaleY());
+        const currentRadius = circle.radius() * scale;
+
+        if (currentRadius < minRadius) {
+          const correctedScale = minRadius / circle.radius();
+          circle.scale({ x: correctedScale, y: correctedScale });
+        }
+      });
+
+      // 可选：显示当前半径和位置
+      const infoLayer = new Konva.Layer();
+      stage.add(infoLayer);
+
+      const infoText = new Konva.Text({
+        x: 10,
+        y: 10,
+        text: getInfoText(),
+        fontSize: 16,
+        fill: "black",
+      });
+
+      infoLayer.add(infoText);
+      infoLayer.draw();
+
+      // 更新信息文本
+      function getInfoText() {
+        const scale = Math.max(circle.scaleX(), circle.scaleY()).toFixed(2);
+        const radius = (circle.radius() * scale).toFixed(2);
+        return `位置: (${circle.x().toFixed(2)}, ${circle
+          .y()
+          .toFixed(2)})\n半径: ${radius}`;
+      }
+
+      function updateInfo() {
+        infoText.text(getInfoText());
+        infoLayer.batchDraw();
+      }
+
+      // 更新信息文本在拖拽和缩放时
+      circle.on("dragmove", updateInfo);
+      circle.on("scale", updateInfo);
+
+      // 调整舞台大小时响应（如果需要）
+      window.addEventListener("resize", () => {
+        // 如果舞台大小是固定的，可以忽略此部分
+        // 如果舞台大小是动态的，可以调整舞台大小并确保圆形在可视范围内
+        /*
+      const newWidth = window.innerWidth * 0.8;
+      const newHeight = window.innerHeight * 0.8;
+      stage.width(newWidth);
+      stage.height(newHeight);
+      keepCircleWithinStageWithAnimation(circle, stage);
+      layer.batchDraw();
+      infoLayer.batchDraw();
+      pathLayer.batchDraw();
+      */
+      });
+    </script>
+  </body>
+</html>
