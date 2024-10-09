@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>D3 Drag and Zoom</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <style>
+      .draggable {
+        cursor: move;
+      }
+    </style>
+  </head>
+  <body>
+    <svg width="800" height="600" style="border: 1px solid black">
+      <image
+        id="car"
+        href="./car.svg"
+        width="50"
+        height="50"
+        x="375"
+        y="275"
+        class="draggable"
+      ></image>
+    </svg>
+
+    <script>
+      const svg = d3.select("svg");
+      const car = d3.select("#car");
+
+      // 缩放行为
+      const zoom = d3
+        .zoom()
+        .scaleExtent([0.5, 5])
+        .on("zoom", (event) => {
+          svg.attr("transform", event.transform);
+        });
+
+      svg.call(zoom);
+
+      // 拖拽行为
+      const drag = d3
+        .drag()
+        .on("start", (event) => {
+          d3.select(event.sourceEvent.target).raise().attr("stroke", "black");
+        })
+        .on("drag", (event) => {
+          d3.select(event.sourceEvent.target)
+            .attr("x", event.x)
+            .attr("y", event.y);
+        })
+        .on("end", (event) => {
+          d3.select(event.sourceEvent.target).attr("stroke", null);
+        });
+
+      car.call(drag);
+    </script>
+  </body>
+</html>

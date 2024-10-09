@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>带有偏转角度的曲线运动</title>
+  </head>
+  <body>
+    <canvas id="myCanvas" width="500" height="500"></canvas>
+    <script>
+      const canvas = document.getElementById("myCanvas");
+      const ctx = canvas.getContext("2d");
+
+      // 起始点
+      const start = { x: 50, y: 300 };
+      // 终点
+      const end = { x: 450, y: 300 };
+      // 起始弧度（假设30度）
+      const theta0 = (30 * Math.PI) / 180;
+      // 终点弧度（假设-60度）
+      const theta1 = (-60 * Math.PI) / 180;
+
+      // 计算距离
+      const d = Math.sqrt((end.x - start.x) ** 2 + (end.y - start.y) ** 2);
+
+      // 控制点1
+      const control1 = {
+        x: start.x + (d / 3) * Math.cos(theta0),
+        y: start.y + (d / 3) * Math.sin(theta0),
+      };
+
+      // 控制点2
+      const control2 = {
+        x: end.x - (d / 3) * Math.cos(theta1),
+        y: end.y - (d / 3) * Math.sin(theta1),
+      };
+
+      let t = 0; // 参数 t 从 0 增加到 1
+
+      function drawCurve() {
+        // 清除画布
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        // 计算贝塞尔曲线上给定 t 的点
+        const x =
+          (1 - t) ** 3 * start.x +
+          3 * (1 - t) ** 2 * t * control1.x +
+          3 * (1 - t) * t ** 2 * control2.x +
+          t ** 3 * end.x;
+
+        const y =
+          (1 - t) ** 3 * start.y +
+          3 * (1 - t) ** 2 * t * control1.y +
+          3 * (1 - t) * t ** 2 * control2.y +
+          t ** 3 * end.y;
+
+        // 绘制点
+        ctx.beginPath();
+        ctx.arc(x, y, 5, 0, Math.PI * 2); // 绘制一个半径为5的圆
+        ctx.fill();
+
+        // 增加 t 的值
+        t += 0.01;
+
+        // 当 t 小于等于1时继续动画
+        if (t <= 1) {
+          requestAnimationFrame(drawCurve);
+        }
+      }
+
+      // 开始绘制
+      drawCurve();
+    </script>
+  </body>
+</html>

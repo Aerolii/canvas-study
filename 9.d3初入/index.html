@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Document</title>
+    <style>
+      body {
+        width: 100vw;
+        height: 100vh;
+        padding: 0;
+        margin: 0;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="container"></div>
+  </body>
+
+  <script type="module">
+    import * as d3 from "https://cdn.jsdelivr.net/npm/d3@7/+esm";
+    import { point, point2 } from "./data.js";
+    import { mapData } from "./../map-data.js";
+    console.log(mapData);
+
+    const { building, edge } = mapData.visual_data;
+
+    const position = {
+      min_x: -17.1547012,
+      max_x: 153.325134,
+      min_y: -217.522934,
+      max_y: 19.217865,
+      scale: 10,
+    };
+
+    function translatePoint(x, y) {
+      x = (x - position.min_x) * position.scale;
+      y = (position.max_y - y) * position.scale;
+      return { x, y };
+    }
+
+    // const height = window.document.body.offsetHeight - 100;
+    const width = window.document.body.offsetWidth;
+    // const ratio = height / 2367;
+    const ratio = width / 1704;
+    const height = width * ratio;
+
+    function translate(point) {
+      return Array.from(point, (p) => {
+        const { x, y } = translatePoint(p.x, p.y);
+        return { x: x * ratio, y: y * ratio };
+      });
+    }
+
+    const zoom = d3
+      .zoom()
+      .scaleExtent([height / 2367, 8])
+      .on("zoom", zoomed);
+
+    const data = Array.from(point, (p) => {
+      const { x, y } = translatePoint(p.x, p.y);
+      return { x: x * ratio, y: y * ratio };
+    });
+
+    const data2 = Array.from(point2, (p) => {
+      const { x, y } = translatePoint(p.x, p.y);
+      return { x: x * ratio, y: y * ratio };
+    });
+
+    const svg = d3
+      .create("svg")
+      .attr("viewBox", [0, 0, width, height])
+      .attr("width", width)
+      .attr("height", height)
+      .attr(
+        "style",
+        "max-width: 100%; height: auto;background-color:rgba(245,235,225,0.1)"
+      )
+      .call(d3.zoom().on("zoom", zoomed));
+
+    const lineGenerator = d3
+      .line()
+      .x((d) => d.x)
+      .y((d) => d.y);
+
+    const arcGenerator = d3.arc()({
+      innerRadius: 3,
+      outerRadius: 5,
+      startAngle: -Math.PI * 0.1,
+      endAngle: Math.PI * 0.9,
+    });
+
+    const g = svg.append("g");
+
+    const states = g
+      .append("path")
+      .datum(data)
+      .attr("fill", "none")
+      .attr("stroke", "steelblue")
+      .attr("stroke-width", 1)
+      .attr("stoke-linejoin", "round")
+      .attr("stoke-linecap", "round")
+      .attr("stroke-dasharray", 2)
+      .join("path")
+      .on("click", clicked)
+      .attr("d", lineGenerator);
+
+    // 在 SVG 中添加图片
+    g.append("image")
+      .attr("xlink:href", "./map.png") // 确保路径正确
+      .attr("x", 0) // 设置图片的 x 坐标
+      .attr("y", 0) // 设置图片的 y 坐标
+      .attr("width", width)
+      .attr("height", height);
+
+    // 在 SVG 中添加 car.svg
+    g.append("image")
+      .attr("xlink:href", "./car.svg") // 确保路径正确
+      .attr("x", 50) // 设置图片的 x 坐标
+      .attr("y", 50) // 设置图片的 y 坐标
+      .attr("width", 20) // 设置图片的宽度
+      .attr("height", 20); // 设置图片的高度
+
+    building.forEach(({ polygon: { point } }) => {
+      const points = translate(point);
+      g.append("path")
+        .datum(points)
+        .attr("fill", "#e7e5e4")
+        .attr("stroke-width", 1)
+        .attr("stoke-linejoin", "round")
+        .attr("stoke-linecap", "round")
+        .attr("stroke-dasharray", 2)
+        .join("path")
+        .on("click", clicked)
+        .attr("d", lineGenerator);
+    });
+
+    edge.forEach(({ polyline: { point } }) => {
+      console.log("point :>> ", point);
+      const points = translate(point);
+      g.append("path")
+        .datum(points)
+        .attr("fill", "none")
+        .attr("stroke", "red")
+        .attr("stroke-width", 1)
+        .attr("stoke-linejoin", "round")
+        .attr("stoke-linecap", "round")
+        .join("path")
+        .on("click", clicked)
+        .attr("d", lineGenerator);
+    });
+
+    const path = g
+      .append("path")
+      .datum(data2)
+      .attr("fill", "none")
+      .attr("stroke", "indigo")
+      .attr("stroke-width", 1)
+      .attr("stoke-linejoin", "round")
+      .attr("stoke-linecap", "round")
+      .join("path")
+      .on("click", clicked)
+      .attr("d", lineGenerator);
+
+    svg.call(zoom);
+
+    const arc = g
+      .append("path")
+      .attr("transform", `translate(${data[0].x}, ${data[0].y})`) // 移动到指定的中心点
+      .attr("fill", "gray") // 填充颜色;
+      .attr("d", arcGenerator);
+
+    function zoomed(event) {
+      const { transform } = event;
+      g.attr("transform", transform);
+      g.attr("stroke-width", 1 / transform.k);
+    }
+
+    function clicked(event, d) {
+      states
+        .transition()
+        .duration(300)
+        .attr("stroke", "orange")
+        .attr("stroke-width", 7);
+
+      setTimeout(() => {
+        states
+          .transition()
+          .duration(300)
+          .attr("stroke", "skyblue")
+          .attr("stroke-width", 1);
+      }, 1000);
+
+      // const [[x0, y0], [x1, y1]] = path.bounds(d);
+      // event.stopPropagation();
+      // states.transition().style("fill", null);
+      // d3.select(this).transition().style("fill", "red");
+      // svg
+      //   .transition()
+      //   .duration(750)
+      //   .call(
+      //     zoom.transform,
+      //     d3.zoomIdentity
+      //       .translate(width / 2, height / 2)
+      //       .scale(
+      //         Math.min(8, 0.9 / Math.max((x1 - x0) / width, (y1 - y0) / height))
+      //       )
+      //       .translate(-(x0 + x1) / 2, -(y0 + y1) / 2),
+      //     d3.pointer(event, svg.node())
+      //   );
+    }
+
+    function reset() {
+      states.transition().style("fill", null);
+      svg
+        .transition()
+        .duration(750)
+        .call(
+          zoom.transform,
+          d3.zoomIdentity,
+          d3.zoomTransform(svg.node()).invert([width / 2, height / 2])
+        );
+    }
+
+    // setInterval(() => {
+    //   reset();
+    // }, 3000);
+
+    console.log(container);
+    container.append(svg.node());
+  </script>
+</html>

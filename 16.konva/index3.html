@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Konva 地图拖拽与缩放（带标记）示例</title>
+    <!-- 引入 Konva.js -->
+    <script src="https://cdn.jsdelivr.net/npm/konva@8.4.3/konva.min.js"></script>
+    <style>
+      body {
+        margin: 0;
+        padding: 0;
+        overflow: hidden;
+        background-color: #f0f0f0;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        height: 100vh;
+      }
+      #container {
+        border: 1px solid #ccc;
+        width: 800px;
+        height: 600px;
+        background-color: #fff;
+        position: relative;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="container"></div>
+
+    <script type="module">
+      import { point, point2 } from "./../data.js";
+
+      const position = {
+        min_x: -17.1547012,
+        max_x: 153.325134,
+        min_y: -217.522934,
+        max_y: 19.217865,
+        scale: 10,
+      };
+
+      function translatePoint(x, y) {
+        x = (x - position.min_x) * position.scale;
+        y = (position.max_y - y) * position.scale;
+        return { x, y };
+      }
+
+      function translate(point, ratio) {
+        return Array.from(point, (p) => {
+          const { x, y } = translatePoint(p.x, p.y);
+          return [x * ratio, y * ratio];
+        }).flat();
+      }
+
+      const startPose = {
+        x: -10.667107940311809,
+        y: -19.175697890645949,
+        theta: 0.2063238940297126,
+      };
+
+      const startPosition = translatePoint(startPose.x, startPose.y);
+
+      console.log("startPosition", startPosition);
+
+      // 设置舞台（画布）大小
+      const width = 800; // 画布宽度
+      const height = 600; // 画布高度
+      let initialScale = 0.5;
+
+      // 创建 Konva 舞台
+      const stage = new Konva.Stage({
+        container: "container",
+        width: width,
+        height: height,
+        draggable: false, // 我们将自己处理拖拽逻辑
+      });
+
+      // 创建图层
+      const layer = new Konva.Layer();
+      stage.add(layer);
+
+      // 创建一个组（Group）来包含地图和标记
+      const mapGroup = new Konva.Group({
+        x: 0,
+        y: 0,
+        draggable: true, // 允许拖拽整个地图组
+        scaleX: 1,
+        scaleY: 1,
+      });
+      layer.add(mapGroup);
+
+      // 加载地图图片
+      const mapImage = new Image();
+      // 使用一张公开的地图图片，你可以替换为自己的图片URL
+      mapImage.src = "./map.png"; // 地图图片URL
+
+      mapImage.onload = function () {
+        // 创建 Konva 图片对象
+        const konvaMap = new Konva.Image({
+          image: mapImage,
+          x: 0,
+          y: 0,
+          width: mapImage.width,
+          height: mapImage.height,
+          offset: {
+            x: 0,
+            y: 0,
+          },
+        });
+
+        // 将地图图片添加到组中
+        mapGroup.add(konvaMap);
+
+        // 计算初始缩放比例以适应舞台
+        const scaleX = width / konvaMap.width();
+        const scaleY = height / konvaMap.height();
+        initialScale = Math.min(scaleX, scaleY);
+        // mapGroup.scale({ x: initialScale, y: initialScale });
+
+        // // 将地图居中
+        // mapGroup.position({
+        //   x: 0,
+        //   y: 0,
+        // });
+        // const startX = (width - konvaMap.width() * initialScale) / 2;
+        // const startY = (height - konvaMap.height() * initialScale) / 2;
+
+        // // // 将地图居中
+        // mapGroup.position({
+        //   x: (width - konvaMap.width() * initialScale) / 2,
+        //   y: (height - konvaMap.height() * initialScale) / 2,
+        // });
+
+        layer.draw();
+
+        const points = translate(point2, 1);
+
+        // 添加一些示例标记（点）
+        const markersData = [
+          { x: startPosition.x, y: startPosition.y, name: "初始定位点" },
+          {
+            x: points[0],
+            y: points[1],
+            name: "初始定位点",
+          },
+        ];
+
+        markersData.forEach((data) => {
+          const marker = createMarker(data.x, data.y, data.name);
+          mapGroup.add(marker);
+        });
+
+        mapGroup.add(createLine(points));
+
+        layer.draw();
+      };
+
+      mapImage.onerror = function () {
+        console.error("地图图片加载失败，请检查图片路径或URL是否正确。");
+      };
+
+      const carImage = new Image();
+      carImage.src = "./small-car.png";
+      carImage.onload = function () {
+        // 创建 Konva 图片对象
+        const konvaMap = new Konva.Image({
+          image: carImage,
+          x: startPosition.x,
+          y: startPosition.y,
+          width: (carImage.width / position.scale) * 2,
+          height: (carImage.height / position.scale) * 2,
+          offset: {
+            x: 0,
+            y: 0,
+          },
+          rotation: startPose.theta,
+        });
+
+        console.log(startPose.theta * Math.PI * 2);
+
+        // 将地图图片添加到组中
+        mapGroup.add(konvaMap);
+
+        layer.draw();
+      };
+
+      function createLine(points) {
+        const strokeColor = "rgba(0,0,155,0.7)";
+        const line = new Konva.Line({
+          x: 0,
+          points,
+          y: 0,
+          stroke: strokeColor,
+          tension: 1,
+          lineJoin: "round",
+        });
+
+        // 添加鼠标进入和离开事件
+        line.on("mouseenter", () => {
+          document.body.style.cursor = "pointer";
+          line.stroke("orange"); // 鼠标悬停时改变颜色
+          line.strokeWidth(5);
+
+          layer.batchDraw();
+        });
+
+        line.on("mouseleave", () => {
+          document.body.style.cursor = "default";
+          line.stroke(strokeColor); // 恢复原色
+          line.strokeWidth(2);
+          layer.batchDraw();
+        });
+
+        // 添加点击事件
+        line.on("click", () => {
+          alert(`你点击了 ${name}`);
+        });
+
+        return line;
+      }
+
+      /**
+       * 创建一个标记（点）
+       * @param {number} x - 标记的X坐标
+       * @param {number} y - 标记的Y坐标
+       * @param {string} name - 标记的名称
+       * @returns {Konva.Group} - 标记组
+       */
+      function createMarker(x, y, name) {
+        const markerGroup = new Konva.Group({
+          x: x,
+          y: y,
+          draggable: true,
+          name: "marker",
+        });
+
+        const circle = new Konva.Circle({
+          radius: 4,
+          fill: "red",
+        });
+
+        const text = new Konva.Text({
+          text: name,
+          fontSize: 12,
+          fill: "black",
+          align: "center",
+          x: -30,
+          y: 4,
+        });
+        console.log("text", text);
+        // text.x = -text.textWidth / 2;
+
+        markerGroup.add(circle);
+        markerGroup.add(text);
+
+        // // 监听拖拽结束事件
+        // markerGroup.on("dragend", () => {
+        //   keepMarkerWithinMap(markerGroup);
+        // });
+
+        // 添加鼠标进入和离开事件
+        markerGroup.on("mouseenter", () => {
+          document.body.style.cursor = "pointer";
+          circle.fill("orange"); // 鼠标悬停时改变颜色
+          layer.batchDraw();
+        });
+
+        markerGroup.on("mouseleave", () => {
+          document.body.style.cursor = "default";
+          circle.fill("red"); // 恢复原色
+          layer.batchDraw();
+        });
+
+        // 添加点击事件
+        markerGroup.on("click", () => {
+          alert(`你点击了 ${name}`);
+        });
+
+        return markerGroup;
+      }
+
+      /**
+       * 检查并调整标记位置，确保其在地图内，并使用动画回弹
+       * @param {Konva.Group} marker - 需要检查的标记组
+       */
+      function keepMarkerWithinMap(marker) {
+        const mapImage = mapGroup.findOne("Image");
+        const mapScale = mapGroup.scaleX(); // 假设缩放比例一致
+        const mapWidth = mapImage.width() * mapScale;
+        const mapHeight = mapImage.height() * mapScale;
+
+        const markerPos = marker.position();
+        const markerRadius = 10 * mapScale; // 圆形半径，考虑缩放
+
+        let newX = markerPos.x;
+        let newY = markerPos.y;
+        let needsAdjustment = false;
+
+        // 检查左边界
+        if (markerPos.x - markerRadius < 0) {
+          newX = markerRadius;
+          needsAdjustment = true;
+        }
+        // 检查右边界
+        if (markerPos.x + markerRadius > mapWidth) {
+          newX = mapWidth - markerRadius;
+          needsAdjustment = true;
+        }
+        // 检查上边界
+        if (markerPos.y - markerRadius < 0) {
+          newY = markerRadius;
+          needsAdjustment = true;
+        }
+        // 检查下边界
+        if (markerPos.y + markerRadius > mapHeight) {
+          newY = mapHeight - markerRadius;
+          needsAdjustment = true;
+        }
+
+        if (needsAdjustment) {
+          // 创建一个Tween动画，将标记移动到新位置
+          new Konva.Tween({
+            node: marker,
+            duration: 0.3, // 动画持续时间（秒）
+            x: newX,
+            y: newY,
+            easing: Konva.Easings.EaseOut,
+            onFinish: () => {
+              layer.batchDraw();
+            },
+          }).play();
+        }
+      }
+
+      /**
+       * 实现地图的缩放功能，通过鼠标滚轮
+       */
+      stage.on("wheel", (e) => {
+        e.evt.preventDefault();
+
+        const oldScale = mapGroup.scaleX();
+
+        // 定义缩放比例因子
+        const scaleBy = 1.05;
+        let newScale = oldScale;
+
+        if (e.evt.deltaY > 0) {
+          // 向下滚动，缩小
+          newScale /= scaleBy;
+        } else {
+          // 向上滚动，放大
+          newScale *= scaleBy;
+        }
+
+        console.log(initialScale);
+
+        // 设置缩放的最小和最大值
+        const minScale = initialScale;
+        const maxScale = 3;
+
+        newScale = Math.max(minScale, Math.min(maxScale, newScale));
+
+        // 获取鼠标指针相对于舞台的位置
+        const pointer = stage.getPointerPosition();
+
+        // 计算缩放中心
+        const mousePointTo = {
+          x: (pointer.x - mapGroup.x()) / oldScale,
+          y: (pointer.y - mapGroup.y()) / oldScale,
+        };
+
+        // 设置新的缩放比例
+        mapGroup.scale({ x: newScale, y: newScale });
+
+        // 新的偏移量，保持缩放中心不变
+        const newPos = {
+          x: pointer.x - mousePointTo.x * newScale,
+          y: pointer.y - mousePointTo.y * newScale,
+        };
+
+        mapGroup.position(newPos);
+
+        layer.batchDraw();
+      });
+    </script>
+  </body>
+</html>

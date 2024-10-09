@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>曲线运动</title>
+  </head>
+  <body>
+    <canvas id="myCanvas" width="500" height="500"></canvas>
+    <script>
+      const canvas = document.getElementById("myCanvas");
+      const ctx = canvas.getContext("2d");
+
+      // 起始点
+      const start = { x: 50, y: 250 };
+      // 重点
+      const end = { x: 450, y: 250 };
+      // 控制点（决定曲率）
+      const control = { x: 250, y: 50 };
+
+      let t = 0; // 参数 t 从 0 增加到 1
+
+      function drawCurve() {
+        // 清除画布
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        // 计算贝塞尔曲线上给定 t 的点
+        const x =
+          (1 - t) * (1 - t) * start.x +
+          2 * (1 - t) * t * control.x +
+          t * t * end.x;
+        const y =
+          (1 - t) * (1 - t) * start.y +
+          2 * (1 - t) * t * control.y +
+          t * t * end.y;
+
+        // 绘制点
+        ctx.beginPath();
+        ctx.arc(x, y, 5, 0, Math.PI * 2); // 绘制一个半径为5的圆
+        ctx.fill();
+
+        // 增加 t 的值
+        t += 0.01;
+
+        // 当 t 小于等于1时继续动画
+        if (t <= 1) {
+          requestAnimationFrame(drawCurve);
+        }
+      }
+
+      // 开始绘制
+      drawCurve();
+    </script>
+  </body>
+</html>

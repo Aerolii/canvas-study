@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Document</title>
+  </head>
+  <body>
+    <canvas id="canvas"></canvas>
+
+    <script>
+      const canvas = document.getElementById("canvas");
+      const w = 400;
+      const h = 300;
+      canvas.style.width = w + "px";
+      canvas.style.height = h + "px";
+      canvas.style.border = "1px solid red";
+      canvas.width = w * devicePixelRatio;
+      canvas.height = h * devicePixelRatio;
+      const ctx = canvas.getContext("2d");
+
+      const img = new Image();
+      img.src =
+        "https://www.html5canvastutorials.com/demos/assets/darth-vader.jpg";
+
+      img.onload = function (e) {
+        const ratio = img.width / canvas.width;
+        console.log("img.width, img.height :>> ", img.width, img.height);
+        console.log(canvas.width, (img.height * canvas.width) / img.width);
+        const sh = (img.height * canvas.width) / img.width;
+        console.log("canvas.height :>> ", canvas.height);
+        console.log("sh :>> ", sh);
+        ctx.save();
+        // ctx.translate(0, canvas.height - sh);
+        ctx.drawImage(
+          img,
+          0,
+          0,
+          canvas.width,
+          (img.height * canvas.width) / img.width
+        );
+      };
+    </script>
+  </body>
+</html>

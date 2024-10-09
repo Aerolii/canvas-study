@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Konva 路径拖拽与缩放（带动画回弹）示例</title>
+    <script src="https://cdn.jsdelivr.net/npm/konva@8.4.3/konva.min.js"></script>
+    <style>
+      body {
+        margin: 0;
+        padding: 0;
+        overflow: hidden;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        height: 100vh;
+        background-color: #f0f0f0;
+      }
+      #container {
+        border: 1px solid #ccc;
+        width: 800px;
+        height: 600px;
+        background-color: #fff;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="container"></div>
+
+    <script>
+      // 设置舞台大小
+      const width = 800; // 固定宽度
+      const height = 600; // 固定高度
+
+      // 创建舞台
+      const stage = new Konva.Stage({
+        container: "container",
+        width: width,
+        height: height,
+      });
+
+      // 创建图层
+      const layer = new Konva.Layer();
+      stage.add(layer);
+
+      // 定义路径数据（SVG Path）
+      const pathData =
+        "M50 50 L150 50 L150 150 L50 150 Z M200 200 C200 100, 300 100, 300 200 S400 300, 400 200";
+
+      // 创建路径
+      const path = new Konva.Path({
+        x: stage.width() / 2,
+        y: stage.height() / 2,
+        data: pathData,
+        fill: "lightgreen",
+        stroke: "green",
+        strokeWidth: 4,
+        draggable: true,
+        // 初始缩放
+        scaleX: 1,
+        scaleY: 1,
+      });
+
+      layer.add(path);
+      layer.draw();
+
+      // 监听拖拽结束事件
+      path.on("dragend", () => {
+        keepPathWithinStageWithAnimation(path, stage);
+      });
+
+      // 监听缩放结束事件
+      path.on("transformend", () => {
+        keepPathWithinStageWithAnimation(path, stage);
+      });
+
+      /**
+       * 检查并调整路径位置，确保其在舞台内，并使用动画回弹
+       * @param {Konva.Path} shape - 需要检查的路径
+       * @param {Konva.Stage} stage - 舞台对象
+       */
+      function keepPathWithinStageWithAnimation(shape, stage) {
+        // 获取路径的边界框
+        const box = shape.getClientRect({ relativeTo: shape.getParent() });
+        let newX = shape.x();
+        let newY = shape.y();
+        let needsAdjustment = false;
+
+        // 检查左边界
+        if (box.x < 0) {
+          newX -= box.x;
+          needsAdjustment = true;
+        }
+        // 检查右边界
+        if (box.x + box.width > stage.width()) {
+          newX -= box.x + box.width - stage.width();
+          needsAdjustment = true;
+        }
+        // 检查上边界
+        if (box.y < 0) {
+          newY -= box.y;
+          needsAdjustment = true;
+        }
+        // 检查下边界
+        if (box.y + box.height > stage.height()) {
+          newY -= box.y + box.height - stage.height();
+          needsAdjustment = true;
+        }
+
+        if (needsAdjustment) {
+          // 创建一个Tween动画，将路径移动到新位置
+          new Konva.Tween({
+            node: shape,
+            duration: 0.5, // 动画持续时间（秒）
+            x: newX,
+            y: newY,
+            easing: Konva.Easings.EaseOut,
+            onFinish: () => {
+              layer.batchDraw();
+            },
+          }).play();
+        }
+      }
+
+      // 实现缩放功能，通过鼠标滚轮
+      stage.on("wheel", (e) => {
+        e.evt.preventDefault();
+        const oldScale = path.scaleX();
+
+        // 缩放比例因子
+        const scaleBy = 1.05;
+        let newScale = oldScale;
+
+        if (e.evt.deltaY > 0) {
+          // 向下滚动，缩小
+          newScale /= scaleBy;
+        } else {
+          // 向上滚动，放大
+          newScale *= scaleBy;
+        }
+
+        // 设置缩放的最小和最大值
+        const minScale = 0.5;
+        const maxScale = 3;
+
+        newScale = Math.max(minScale, Math.min(maxScale, newScale));
+
+        // 设置新的缩放
+        path.scale({ x: newScale, y: newScale });
+
+        keepPathWithinStageWithAnimation(path, stage);
+        layer.batchDraw();
+      });
+
+      // 限制最小缩放，防止路径过小
+      const minScale = 0.5;
+      path.on("scale", () => {
+        const scale = Math.max(path.scaleX(), path.scaleY());
+        if (scale < minScale) {
+          path.scale({ x: minScale, y: minScale });
+        }
+      });
+
+      // 可选：显示当前缩放和位置信息
+      const infoLayer = new Konva.Layer();
+      stage.add(infoLayer);
+
+      const infoText = new Konva.Text({
+        x: 10,
+        y: 10,
+        text: getInfoText(),
+        fontSize: 16,
+        fill: "black",
+      });
+
+      infoLayer.add(infoText);
+      infoLayer.draw();
+
+      // 更新信息文本
+      function getInfoText() {
+        const scale = Math.max(path.scaleX(), path.scaleY()).toFixed(2);
+        return `位置: (${path.x().toFixed(2)}, ${path
+          .y()
+          .toFixed(2)})\n缩放: ${scale}`;
+      }
+
+      function updateInfo() {
+        infoText.text(getInfoText());
+        infoLayer.batchDraw();
+      }
+
+      // 更新信息文本在拖拽和缩放时
+      path.on("dragmove", updateInfo);
+      path.on("scale", updateInfo);
+
+      // 调整舞台大小时响应（如果需要）
+      window.addEventListener("resize", () => {
+        // 如果舞台大小是固定的，可以忽略此部分
+        // 如果舞台大小是动态的，可以调整舞台大小并确保路径在可视范围内
+        /*
+      const newWidth = window.innerWidth * 0.8;
+      const newHeight = window.innerHeight * 0.8;
+      stage.width(newWidth);
+      stage.height(newHeight);
+      keepPathWithinStageWithAnimation(path, stage);
+      layer.batchDraw();
+      infoLayer.batchDraw();
+      */
+      });
+    </script>
+  </body>
+</html>

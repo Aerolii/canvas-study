@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>D3</title>
+
+    <style>
+      * {
+        padding: 0;
+        margin: 0;
+      }
+      body {
+        padding: 0;
+        margin: 0;
+        min-height: 100vh;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="container"></div>
+
+    <script type="module">
+      import * as d3 from "https://cdn.jsdelivr.net/npm/d3@7/+esm";
+      import { point } from "./../data.js";
+
+      const imgWidth = 1704;
+      const width = document.body.offsetWidth;
+      const ratio = width / imgWidth;
+      const height = ratio * document.body.offsetHeight;
+
+      console.log("width, height :>> ", width, height);
+
+      const svg = d3
+        .create("svg")
+        .attr("viewbox", [0, 0, width, height])
+        .attr("width", width)
+        .attr("height", height);
+
+      const g = svg.append("g");
+      const path = g.append("path");
+
+      container.append(svg.node());
+      console.log(container);
+      container.append();
+    </script>
+  </body>
+</html>

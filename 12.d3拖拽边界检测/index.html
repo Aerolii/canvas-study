@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>D3.js Drag Example</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+  </head>
+  <body>
+    <svg width="400" height="400" style="border: 1px solid black"></svg>
+
+    <script>
+      const svg = d3.select("svg");
+      const width = +svg.attr("width");
+      const height = +svg.attr("height");
+
+      // 在 SVG 中添加图片
+      svg
+        .append("image")
+        .attr("xlink:href", "./map.png") // 确保路径正确
+        .attr("x", 0) // 设置图片的 x 坐标
+        .attr("y", 0) // 设置图片的 y 坐标
+        .attr("width", 400) // 设置图片的宽度
+        .attr("height", 400); // 设置图片的高度
+
+      // 在 SVG 中添加 car.svg
+      svg
+        .append("image")
+        .attr("xlink:href", "./car.svg") // 确保路径正确
+        .attr("x", 50) // 设置图片的 x 坐标
+        .attr("y", 50) // 设置图片的 y 坐标
+        .attr("width", 100) // 设置图片的宽度
+        .attr("height", 100); // 设置图片的高度
+
+      // 创建一个圆弧
+      const arcGenerator = d3
+        .arc()
+        .innerRadius(50)
+        .outerRadius(100)
+        .startAngle(0)
+        .endAngle(Math.PI / 2);
+
+      // 初始位置
+      let initialX = 200;
+      let initialY = 200;
+
+      // 创建g元素来容纳圆弧
+      const g = svg.append("g").attr("transform", function () {
+        return `translate(${initialX}, ${initialY})`;
+      });
+
+      // 在g元素中添加路径
+      g.append("path").attr("d", arcGenerator).attr("fill", "steelblue");
+
+      async function getImage() {
+        const image = await d3.image("./map.png");
+        console.log(image);
+
+        svg
+          .append("image")
+          .attr("xlink:href", image)
+          .attr("width", 200)
+          .attr("height", 150);
+      }
+
+      getImage();
+
+      const rect = g
+        .append("rect")
+        .attr("width", 100)
+        .attr("height", 100)
+        .attr("fill", "skyblue");
+
+      // 定义变量用于存储鼠标相对位置
+      let offsetX, offsetY;
+
+      // 拖拽行为
+      const dragHandler = d3
+        .drag()
+        .on("start", function (event) {
+          // 计算鼠标点击时与g元素当前坐标的偏移
+          const currentTransform = d3.select(this).attr("transform");
+          const translate = currentTransform.match(
+            /translate\(([^,]+),([^\)]+)\)/
+          );
+          const currentX = parseFloat(translate[1]);
+          const currentY = parseFloat(translate[2]);
+
+          offsetX = event.x - currentX;
+          offsetY = event.y - currentY;
+
+          d3.select(event.sourceEvent.target)
+            .transition()
+            .duration(300)
+            .attr("fill", "red");
+        })
+        .on("drag", function (event) {
+          // 实时更新 g 的位置，减去偏移量
+          let x = event.x - offsetX;
+          let y = event.y - offsetY;
+
+          d3.select(this).attr("transform", `translate(${x}, ${y})`);
+        })
+        .on("end", function (event) {
+          let x = event.x - offsetX;
+          let y = event.y - offsetY;
+
+          // 边界检测和位置修正
+          const arcRadius = 100; // g 中包含的圆弧的外半径，用于检测边界
+
+          console.log("x,y :>> ", x, y);
+
+          // 检查是否超出左边界或右边界
+          if (x < 0) {
+            // x = arcRadius; // 自动贴住左边界
+            x = 0;
+          } else if (x + arcRadius > width) {
+            x = width - arcRadius; // 自动贴住右边界
+          }
+
+          console.log("x,y :>> ", x, y);
+          // 检查是否超出上边界或下边界
+          // if (y - arcRadius < 0) {
+          //   y = arcRadius; // 自动贴住上边界
+          // } else if (y + arcRadius > height) {
+          //   // y = height - arcRadius; // 自动贴住下边界
+          //   y = height;
+          // }
+
+          if (y - arcRadius < 0) {
+            y = arcRadius; // 自动贴住上边界
+          } else if (y > height) {
+            // y = height - arcRadius; // 自动贴住下边界
+            y = height;
+          }
+
+          d3.select(event.sourceEvent.target)
+            .transition()
+            .duration(500)
+            .attr("fill", "skyblue");
+
+          // 更新 g 的位置到修正后的值
+          d3.select(this)
+            .transition()
+            .duration(300)
+            .delay(50)
+            .attr("transform", `translate(${x}, ${y})`);
+        });
+
+      rect.on("mouseenter", (e) => {
+        d3.select(e.target).transition().attr("fill", "orange");
+      });
+
+      rect.on("mouseleave", (e) => {
+        d3.select(e.target).transition().attr("fill", "skyblue");
+      });
+
+      // 应用拖拽行为到g元素
+      dragHandler(g);
+
+      // 定义缩放行为
+      const zoomHandler = d3
+        .zoom()
+        .scaleExtent([0.5, 5]) // 设置缩放范围
+        .on("zoom", function (event) {
+          svg.attr("transform", event.transform);
+        });
+
+      // 应用缩放行为到 SVG
+      svg.call(zoomHandler);
+    </script>
+  </body>
+</html>

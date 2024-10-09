@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ECharts Custom Path and Animation (No Axis)</title>
+    <script src="https://cdn.jsdelivr.net/npm/echarts/dist/echarts.min.js"></script>
+  </head>
+  <body>
+    <!-- 用于显示ECharts的容器 -->
+    <div id="main" style="width: 600px; height: 400px"></div>
+
+    <script type="text/javascript">
+      // 初始化ECharts实例
+      var myChart = echarts.init(document.getElementById("main"));
+
+      // 配置项
+      var option = {
+        graphic: {
+          elements: [
+            // 图片
+            {
+              type: "image",
+              style: {
+                image:
+                  "https://echarts.apache.org/examples/data/asset/img/echarts-logo.png", // 图片路径
+                width: 100,
+                height: 100,
+              },
+              left: 50, // 设置图片的初始位置
+              top: 50,
+              draggable: true, // 图片拖拽
+            },
+            // 自定义路径
+            {
+              type: "polyline",
+              shape: {
+                points: [
+                  [50, 50],
+                  [150, 150],
+                  [250, 100],
+                  [350, 200],
+                ], // 自定义路径点
+                addEventListener: (params) => {
+                  console.log("params :>> ", params);
+                },
+              },
+              style: {
+                stroke: "blue",
+                lineWidth: 3,
+              },
+              draggable: true, // 允许路径的拖拽
+            },
+          ],
+        },
+      };
+
+      // 使用配置项生成图表
+      myChart.setOption(option);
+    </script>
+  </body>
+</html>
