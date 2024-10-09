@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Konva MapGroup 示例：地图与小车移动</title>
+    <script src="https://cdn.jsdelivr.net/npm/konva@8.4.3/konva.min.js"></script>
+    <style>
+      body {
+        margin: 0;
+        padding: 0;
+        overflow: hidden;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        height: 100vh;
+        background-color: #f0f0f0;
+      }
+      #container {
+        border: 1px solid #ccc;
+        width: 800px;
+        height: 600px;
+        background-color: #fff;
+        position: relative;
+      }
+      /* 可选：隐藏图片加载时的闪烁 */
+      img {
+        display: none;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="container"></div>
+
+    <script type="module">
+      import { point as point1, point2 } from "./../data.js";
+
+      const position = {
+        min_x: -17.1547012,
+        max_x: 153.325134,
+        min_y: -217.522934,
+        max_y: 19.217865,
+        scale: 10,
+      };
+
+      function translatePoint(x, y) {
+        x = (x - position.min_x) * position.scale;
+        y = (position.max_y - y) * position.scale;
+        return { x, y };
+      }
+
+      function translate(point, ratio) {
+        return Array.from(point, (p) => {
+          const { x, y } = translatePoint(p.x, p.y);
+          return [x * ratio, y * ratio];
+        }).flat();
+      }
+
+      const startPose = {
+        x: -10.667107940311809,
+        y: -19.175697890645949,
+        theta: 0.2063238940297126,
+      };
+
+      const startPosition = translatePoint(startPose.x, startPose.y);
+      const points = translate(point1, 1);
+
+      // 设置舞台大小
+      const width = 800; // 固定宽度
+      const height = 600; // 固定高度
+
+      // 创建舞台
+      const stage = new Konva.Stage({
+        container: "container",
+        width: width,
+        height: height,
+      });
+
+      // 创建图层
+      const layer = new Konva.Layer();
+      stage.add(layer);
+
+      // 创建地图图片对象
+      const mapImageObj = new Image();
+      // 替换为实际的地图图片URL
+      mapImageObj.src = "./map.png"; // 假设地图为1600x1200
+
+      // 创建小车图片对象
+      const carImageObj = new Image();
+      // 替换为实际的小车图片URL
+      carImageObj.src = "./small-car.png";
+
+      // 等待图片加载完成后执行
+      mapImageObj.onload = () => {
+        carImageObj.onload = () => {
+          initializeMapGroup();
+        };
+      };
+
+      /**
+       * 初始化 mapGroup，包含地图和小车
+       */
+      function initializeMapGroup() {
+        // 创建 mapGroup
+        const mapGroup = new Konva.Group({
+          draggable: true,
+          scaleX: 1,
+          scaleY: 1,
+        });
+
+        // 添加地图图片到 mapGroup
+
+        const map = new Konva.Image({
+          image: mapImageObj,
+          x: 0,
+          y: 0,
+          width: mapImageObj.width,
+          height: mapImageObj.height,
+          offset: {
+            x: 0,
+            y: 0,
+          },
+        });
+
+        mapGroup.add(map);
+
+        // 添加小车图片到 mapGroup
+        const car = new Konva.Image({
+          x: startPosition.x, // 初始x位置
+          y: startPosition.y, // 初始y位置
+          image: carImageObj,
+          width: 24,
+          height: 24,
+          offset: { x: 25, y: 15 }, // 将小车中心对齐
+        });
+        mapGroup.add(car);
+
+        // 添加 mapGroup 到图层
+        layer.add(mapGroup);
+        layer.draw();
+
+        // 定义小车移动的步长
+        const moveStep = { x: 5, y: 0 }; // 每次移动5像素，向右
+
+        let i = 0;
+        // 定时器，每秒移动一次小车
+        const moveInterval = setInterval(() => {
+          if (i < Math.round(points.length / 2)) {
+            moveCar(points[i * 2], points[i * 2 + 1]);
+            i++;
+          }
+        }, 1000);
+
+        /**
+         * 移动小车位置
+         */
+        function moveCar(x, y) {
+          // // 获取当前小车的位置
+          // const currentX = car.x();
+          // const currentY = car.y();
+
+          // 更新小车的位置
+          car.x(x);
+          car.y(y);
+
+          // 绘制更新
+          layer.batchDraw();
+
+          // 检查小车是否超出画布可视区域
+          checkAndAdjustMapGroup();
+        }
+
+        /**
+         * 检查小车是否超出画布可视区域，如果超出则调整 mapGroup 位置
+         */
+        function checkAndAdjustMapGroup() {
+          // 获取小车的绝对位置（相对于舞台）
+          const carAbsolutePosition = car.getAbsolutePosition();
+
+          // 获取小车的宽度和高度，考虑缩放
+          const carWidth = car.width() * mapGroup.scaleX();
+          const carHeight = car.height() * mapGroup.scaleY();
+
+          let adjustX = 0;
+          let adjustY = 0;
+
+          // 检查x轴是否超出
+          let xExceeded = false;
+          if (
+            carAbsolutePosition.x - carWidth / 2 > stage.width() ||
+            carAbsolutePosition.x - carWidth / 2 < 0
+          ) {
+            xExceeded = true;
+          }
+
+          // 检查y轴是否超出
+          let yExceeded = false;
+          if (
+            carAbsolutePosition.y - carHeight / 2 > stage.height() ||
+            carAbsolutePosition.y - carHeight / 2 < 0
+          ) {
+            yExceeded = true;
+          }
+
+          // 如果x或y超出
+          if (xExceeded || yExceeded) {
+            // 计算新的mapGroup位置
+            // 将小车移动到画布左侧边缘（x=0），并将y轴居中
+            // 需要考虑缩放比例
+
+            // 新的mapGroup的x坐标，使得小车的绝对x = 0
+            // const newGroupX =
+            //   -car.x() * mapGroup.scaleX() + car.width() + devicePixelRatio;
+
+            const newGroupX = stage.width() / 2 - car.x() * mapGroup.scaleX();
+
+            // 新的mapGroup的y坐标，使得小车的绝对y = stage.height() / 2
+            const newGroupY = stage.height() / 2 - car.y() * mapGroup.scaleY();
+
+            // 使用 Konva.Tween 动画调整 mapGroup 位置
+            new Konva.Tween({
+              node: mapGroup,
+              duration: 0.5, // 动画持续时间（秒）
+              x: newGroupX,
+              y: newGroupY,
+              easing: Konva.Easings.EaseOut,
+              onFinish: () => {
+                layer.batchDraw();
+              },
+            }).play();
+          }
+        }
+
+        /**
+         * 支持 mapGroup 缩放，通过鼠标滚轮
+         */
+        stage.on("wheel", (e) => {
+          e.evt.preventDefault();
+
+          // 获取鼠标指针相对于舞台的位置
+          const pointer = stage.getPointerPosition();
+
+          // 获取当前缩放比例
+          const oldScale = mapGroup.scaleX();
+
+          // 缩放比例因子
+          const scaleBy = 1.05;
+          let newScale = oldScale;
+
+          if (e.evt.deltaY > 0) {
+            // 向下滚动，缩小
+            newScale /= scaleBy;
+          } else {
+            // 向上滚动，放大
+            newScale *= scaleBy;
+          }
+
+          // 设置缩放的最小和最大值
+          const minScale = 0.5;
+          const maxScale = 3;
+          newScale = Math.max(minScale, Math.min(maxScale, newScale));
+
+          // 计算新的x和y，以保持缩放中心在鼠标位置
+          const mousePointTo = {
+            x: (pointer.x - mapGroup.x()) / oldScale,
+            y: (pointer.y - mapGroup.y()) / oldScale,
+          };
+
+          // 设置新的缩放
+          mapGroup.scale({ x: newScale, y: newScale });
+
+          //计算新的位置 to keep the mouse point consistent
+          const newPos = {
+            x: pointer.x - mousePointTo.x * newScale,
+            y: pointer.y - mousePointTo.y * newScale,
+          };
+          mapGroup.position(newPos);
+
+          layer.batchDraw();
+
+          // 检查小车是否超出画布可视区域
+          checkAndAdjustMapGroup();
+        });
+
+        /**
+         * 可选：显示当前缩放级别和 mapGroup 位置
+         */
+        const infoLayer = new Konva.Layer();
+        stage.add(infoLayer);
+
+        const infoText = new Konva.Text({
+          x: 10,
+          y: 10,
+          text: getInfoText(),
+          fontSize: 16,
+          fill: "black",
+        });
+
+        infoLayer.add(infoText);
+        infoLayer.draw();
+
+        // 更新信息文本
+        function getInfoText() {
+          const scale = mapGroup.scaleX().toFixed(2);
+          const posX = mapGroup.x().toFixed(2);
+          const posY = mapGroup.y().toFixed(2);
+          return `缩放: ${scale}\n位置: (${posX}, ${posY})`;
+        }
+
+        function updateInfo() {
+          infoText.text(getInfoText());
+          infoLayer.batchDraw();
+        }
+
+        // 更新信息文本在拖拽和缩放时
+        mapGroup.on("dragmove", updateInfo);
+        mapGroup.on("scale", updateInfo);
+      }
+    </script>
+  </body>
+</html>

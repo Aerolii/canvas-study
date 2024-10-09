@@ -176,7 +176,7 @@
 
         let i = 0;
         timer = setInterval(() => {
-          if (i > 10) {
+          if (i > point1.length - 1) {
             return;
           }
           const point = point1[i];
@@ -193,11 +193,13 @@
             easing: Konva.Easings.Linear, // 匀速动画
           }).play();
 
-          keepRectangleWithinStageWithAnimation(carGroup, stage);
+          // keepRectangleWithinStageWithAnimation(carGroup, stage);
+          // 新增：如果 carGroup 移动超出画布可视范围，移动整个画布到可视区
+          adjustStagePosition(carGroup, stage);
           layer.draw();
 
           i++;
-        }, 1000);
+        }, 5000);
       };
 
       function createCar(carImage) {
@@ -436,6 +438,36 @@
 
         layer.batchDraw();
       });
+
+      function adjustStagePosition(carGroup, stage) {
+        const { x: carX, y: carY } = carGroup.getClientRect();
+        const stageWidth = stage.width();
+        const stageHeight = stage.height();
+
+        if (carX < 0) {
+          mapGroup.x(mapGroup.x() - carX); // 移动画布到可视区
+        } else if (carX + carGroup.width() > stageWidth) {
+          mapGroup.x(mapGroup.x() - (carX + carGroup.width() - stageWidth)); // 移动画布到可视区
+        }
+
+        // if (carY < 0) {
+        //   mapGroup.y(mapGroup.y() - carY); // 移动画布到可视区
+        // } else if (carY + carGroup.height() > stageHeight) {
+        //   mapGroup.y(mapGroup.y() - (carY + carGroup.height() - stageHeight)); // 移动画布到可视区
+        // }
+
+        // 新增：将 y 轴移动到画布高度的一半，使用动画
+        const halfHeight = stageHeight / 2;
+        // new Konva.Tween({
+        //   node: mapGroup,
+        //   duration: 0.5, // 动画持续时间（秒）
+        //   y: halfHeight - carGroup.height() / 2, // 将 carGroup 垂直居中
+        //   easing: Konva.Easings.EaseOut, // 动画缓动效果
+        //   onFinish: () => {
+        //     layer.batchDraw(); // 动画完成后重绘图层
+        //   },
+        // }).play();
+      }
     </script>
   </body>
 </html>
