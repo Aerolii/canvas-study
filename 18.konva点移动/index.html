@@ -61,12 +61,18 @@
         theta: 0.2063238940297126,
       };
 
-      const startPosition = translatePoint(startPose.x, startPose.y);
+      console.log(point1[3000]);
+      // const startPosition = translatePoint(startPose.x, startPose.y);
+      const startPosition = translatePoint(point1[3000].x, point1[3000].y);
+
       const points = translate(point1, 1);
 
       // 设置舞台大小
       const width = 800; // 固定宽度
       const height = 600; // 固定高度
+
+      let thumbnialScale = 1;
+      let mapMinScale = 1;
 
       // 创建舞台
       const stage = new Konva.Stage({
@@ -89,12 +95,64 @@
       // 替换为实际的小车图片URL
       carImageObj.src = "./small-car.png";
 
+      // 创建缩略图图层
+      const thumbnailLayer = new Konva.Layer();
+      stage.add(thumbnailLayer);
+
+      const thumbnailWidth = 200;
+      const thumbnailHeight = 300;
+
       // 等待图片加载完成后执行
       mapImageObj.onload = () => {
         carImageObj.onload = () => {
+          createThumbnailLayer();
           initializeMapGroup();
         };
       };
+
+      function createThumbnailLayer(params) {
+        // 创建缩略图矩形
+        const thumbnailRect = new Konva.Rect({
+          x: 10,
+          y: 10,
+          width: thumbnailWidth,
+          height: thumbnailHeight,
+          fill: "rgba(100,100,100,0.1)",
+          cornerRadius: 10,
+        });
+
+        // 创建缩略图内容
+        const thumbnailImage = new Konva.Image({
+          image: mapImageObj,
+          x: 10,
+          y: 10,
+          width: mapImageObj.width,
+          height: mapImageObj.height,
+          listening: false, // 不响应事件
+        });
+
+        // 计算初始缩放比例以适应舞台
+        const scaleX = thumbnailWidth / mapImageObj.width;
+        const scaleY = thumbnailHeight / mapImageObj.height;
+        thumbnialScale = Math.min(scaleX, scaleY);
+        thumbnailImage.scale({ x: thumbnialScale, y: thumbnialScale });
+
+        // 创建缩略图小车点位标注
+        const carPoint = new Konva.Circle({
+          x: startPosition.x * thumbnialScale,
+          y: startPosition.y * thumbnialScale,
+          radius: 30 * thumbnialScale,
+          fill: "green",
+          id: "carPoint",
+        });
+
+        thumbnailLayer.add(thumbnailRect);
+        thumbnailLayer.add(thumbnailImage);
+        thumbnailLayer.add(carPoint);
+
+        // 绘制缩略图
+        thumbnailLayer.draw();
+      }
 
       /**
        * 初始化 mapGroup，包含地图和小车
@@ -123,16 +181,28 @@
 
         mapGroup.add(map);
 
-        // 添加小车图片到 mapGroup
-        const car = new Konva.Image({
-          x: startPosition.x, // 初始x位置
-          y: startPosition.y, // 初始y位置
-          image: carImageObj,
-          width: 24,
-          height: 24,
-          offset: { x: 25, y: 15 }, // 将小车中心对齐
-        });
+        const car = createCar();
+        console.log("car", car);
         mapGroup.add(car);
+
+        // 计算初始缩放比例以适应舞台
+        const scaleX = stage.width() / mapImageObj.width;
+        const scaleY = stage.height() / mapImageObj.height;
+        mapMinScale = Math.min(scaleX, scaleY);
+
+        // // 添加小车图片到 mapGroup
+        // const car = new Konva.Image({
+        //   x: startPosition.x, // 初始x位置
+        //   y: startPosition.y, // 初始y位置
+        //   image: carImageObj,
+        //   width: 24,
+        //   height: 24,
+        //   offset: { x: 25, y: 15 }, // 将小车中心对齐
+        // });
+        // mapGroup.add(car);
+
+        const carPoint = thumbnailLayer.findOne("#carPoint");
+        console.log("carPoint", carPoint);
 
         // 添加 mapGroup 到图层
         layer.add(mapGroup);
@@ -141,14 +211,22 @@
         // 定义小车移动的步长
         const moveStep = { x: 5, y: 0 }; // 每次移动5像素，向右
 
-        let i = 0;
-        // 定时器，每秒移动一次小车
-        const moveInterval = setInterval(() => {
-          if (i < Math.round(points.length / 2)) {
-            moveCar(points[i * 2], points[i * 2 + 1]);
-            i++;
-          }
-        }, 1000);
+        checkAndAdjustMapGroup();
+
+        // let i = 3000;
+        // // 定时器，每秒移动一次小车
+        // const moveInterval = setInterval(() => {
+        //   if (i < Math.round(points.length / 2)) {
+        //     moveCar(points[i * 2], points[i * 2 + 1]);
+        //     carPoint.to({
+        //       x: points[i * 2] * thumbnialScale + 10,
+        //       y: points[i * 2 + 1] * thumbnialScale + 10,
+        //     });
+        //     // carPoint.x(points[i * 2] * thumbnialScale + 10);
+        //     // carPoint.y(points[i * 2 + 1] * thumbnialScale + 10);
+        //     i++;
+        //   }
+        // }, 1000);
 
         /**
          * 移动小车位置
@@ -158,9 +236,20 @@
           // const currentX = car.x();
           // const currentY = car.y();
 
-          // 更新小车的位置
-          car.x(x);
-          car.y(y);
+          // // 更新小车的位置
+          // car.x(x);
+          // car.y(y);
+
+          new Konva.Tween({
+            node: car,
+            duration: 0.5, // 动画持续时间（秒）
+            x,
+            y,
+            easing: Konva.Easings.EaseOut,
+            onFinish: () => {
+              layer.batchDraw();
+            },
+          }).play();
 
           // 绘制更新
           layer.batchDraw();
@@ -172,7 +261,7 @@
         /**
          * 检查小车是否超出画布可视区域，如果超出则调整 mapGroup 位置
          */
-        function checkAndAdjustMapGroup() {
+        function checkAndAdjustMapGroup(isDrag = false) {
           // 获取小车的绝对位置（相对于舞台）
           const carAbsolutePosition = car.getAbsolutePosition();
 
@@ -206,14 +295,13 @@
             // 计算新的mapGroup位置
             // 将小车移动到画布左侧边缘（x=0），并将y轴居中
             // 需要考虑缩放比例
-
             // 新的mapGroup的x坐标，使得小车的绝对x = 0
             // const newGroupX =
             //   -car.x() * mapGroup.scaleX() + car.width() + devicePixelRatio;
+            const newGroupX = isDrag
+              ? -car.x() * mapGroup.scaleX() + car.width() + devicePixelRatio
+              : stage.width() / 2 - car.x() * mapGroup.scaleX();
 
-            const newGroupX = stage.width() / 2 - car.x() * mapGroup.scaleX();
-
-            // 新的mapGroup的y坐标，使得小车的绝对y = stage.height() / 2
             const newGroupY = stage.height() / 2 - car.y() * mapGroup.scaleY();
 
             // 使用 Konva.Tween 动画调整 mapGroup 位置
@@ -311,9 +399,44 @@
           infoLayer.batchDraw();
         }
 
-        // 更新信息文本在拖拽和缩放时
+        // 在拖拽和缩放时更新信息文本
         mapGroup.on("dragmove", updateInfo);
         mapGroup.on("scale", updateInfo);
+        mapGroup.on("dragend", () => checkAndAdjustMapGroup(true));
+      }
+
+      function createCar() {
+        const carGroup = new Konva.Group({
+          draggable: false,
+          x: startPosition.x, // 初始x位置
+          y: startPosition.y, // 初始y位置
+          width: 40,
+          height: 30,
+          fill: "red",
+          rotation: 90,
+        });
+        // 添加小车图片到 mapGroup
+        const car = new Konva.Image({
+          image: carImageObj,
+          width: 24,
+          height: 24,
+          offset: { x: 12, y: 12 }, // 将小车中心对齐
+        });
+        // 添加小车图片到 mapGroup
+        const carBackground = new Konva.Rect({
+          // x: startPosition.x - 25, // 矩形背景位置
+          // y: startPosition.y - 15, // 矩形背景位置
+          width: 30, // 矩形宽度
+          height: 40, // 矩形高度
+          fill: "green", // 矩形颜色
+          opacity: 0.5, // 矩形透明度
+          offset: { x: 15, y: 20 }, // 将小车中心对齐
+        });
+        carGroup.add(carBackground); // 添加矩形背景到 mapGroup
+
+        carGroup.add(car);
+
+        return carGroup;
       }
     </script>
   </body>
