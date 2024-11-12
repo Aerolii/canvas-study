@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Three.js Dynamic Road Loading</title>
+    <style>
+      body {
+        margin: 0;
+      }
+      canvas {
+        display: block;
+      }
+    </style>
+  </head>
+  <body>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script>
+      const scene = new THREE.Scene();
+      const camera = new THREE.PerspectiveCamera(
+        75,
+        window.innerWidth / window.innerHeight,
+        0.1,
+        1000
+      );
+      const renderer = new THREE.WebGLRenderer();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      document.body.appendChild(renderer.domElement);
+
+      // 变量定义
+      let carPosition = 0;
+      const carSpeed = 0.001;
+      const roadSegments = [];
+      let currentCurve;
+
+      // 创建车辆
+      const carGeometry = new THREE.BoxGeometry(4, 2, 2);
+      const carMaterial = new THREE.MeshBasicMaterial({ color: 0xff0000 });
+      const car = new THREE.Mesh(carGeometry, carMaterial);
+      scene.add(car);
+
+      // 初始相机设置
+      camera.position.set(0, 10, -20);
+      camera.lookAt(car.position);
+
+      // 创建初始S型道路段
+      function createRoadSegment(points) {
+        const curve = new THREE.CatmullRomCurve3(points);
+        const roadGeometry = new THREE.TubeGeometry(curve, 100, 2, 8, false);
+        const roadMaterial = new THREE.MeshBasicMaterial({ color: 0x333333 });
+        const road = new THREE.Mesh(roadGeometry, roadMaterial);
+
+        scene.add(road);
+        roadSegments.push({ curve, road });
+        return curve;
+      }
+
+      // 创建第一段道路
+      currentCurve = createRoadSegment([
+        new THREE.Vector3(-50, 0, -20),
+        new THREE.Vector3(-30, 0, 20),
+        new THREE.Vector3(0, 0, -20),
+        new THREE.Vector3(30, 0, 20),
+        new THREE.Vector3(50, 0, -20),
+      ]);
+
+      // 加载新道路段
+      function loadNewRoadSegment() {
+        // 定义新道路段的起始点（上一个路径的终点）
+        const lastPoint = currentCurve.getPoint(1);
+        const newPoints = [
+          lastPoint,
+          lastPoint.clone().add(new THREE.Vector3(30, 0, -20)),
+          lastPoint.clone().add(new THREE.Vector3(60, 0, 20)),
+          lastPoint.clone().add(new THREE.Vector3(90, 0, -20)),
+          lastPoint.clone().add(new THREE.Vector3(120, 0, 20)),
+        ];
+
+        currentCurve = createRoadSegment(newPoints); // 更新当前路径
+      }
+
+      // 渲染循环
+      function animate() {
+        requestAnimationFrame(animate);
+
+        // 更新车辆位置
+        carPosition += carSpeed;
+        if (carPosition > 1) carPosition = 0; // 环形循环
+
+        // 获取车辆在路径上的位置和朝向
+        const point = currentCurve.getPointAt(carPosition);
+        const tangent = currentCurve.getTangentAt(carPosition);
+
+        car.position.copy(point);
+        car.lookAt(point.clone().add(tangent));
+
+        // 检查是否接近当前道路的末端，若接近则加载新段
+        if (carPosition > 0.5 && roadSegments.length < 3) {
+          // 加载限制：最多3段
+          loadNewRoadSegment();
+        }
+
+        // 固定视角跟随车辆
+        camera.position.set(
+          point.x - 20 * tangent.x,
+          point.y + 10,
+          point.z - 20 * tangent.z
+        );
+        camera.lookAt(car.position);
+
+        renderer.render(scene, camera);
+      }
+
+      animate();
+
+      // 调整窗口大小
+      window.addEventListener("resize", () => {
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+      });
+    </script>
+  </body>
+</html>
