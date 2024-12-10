@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <meta name="viewport" content="initial-scale=1.0, user-scalable=no" />
+    <style type="text/css">
+      body,
+      html {
+        width: 100%;
+        height: 100%;
+        margin: 0;
+      }
+
+      #allmap {
+        height: 100%;
+        width: 100%;
+      }
+
+      ul li {
+        list-style: none;
+      }
+
+      .btn-wrap {
+        z-index: 999;
+        position: fixed;
+        bottom: 3.5rem;
+        margin-left: 3rem;
+        padding: 1rem 1rem;
+        border-radius: 0.25rem;
+        background-color: #fff;
+        box-shadow: 0 2px 6px 0 rgba(27, 142, 236, 0.5);
+      }
+
+      .btn {
+        width: 75px;
+        height: 30px;
+        float: left;
+        background-color: #fff;
+        color: rgba(27, 142, 236, 1);
+        font-size: 14px;
+        border: 1px solid rgba(27, 142, 236, 1);
+        border-radius: 5px;
+        margin: 0 5px;
+        text-align: center;
+        line-height: 30px;
+      }
+
+      .btn:hover {
+        background-color: rgba(27, 142, 236, 0.8);
+        color: #fff;
+      }
+    </style>
+    <script
+      type="text/javascript"
+      src="//api.map.baidu.com/api?type=webgl&v=1.0&ak=zKkhLYJiYFNiotITdm2IQEP8AZMzLJDW"
+    ></script>
+    <script
+      type="text/javascript"
+      src="https://unpkg.com/@bmapgl-plugin/track"
+    ></script>
+    <script
+      type="text/javascript"
+      src="//mapopen-pub-jsapi.bj.bcebos.com/jsapiGlgeo/track.js"
+    ></script>
+    <title>LocalTrack</title>
+  </head>
+
+  <body>
+    <div id="allmap"></div>
+    <ul class="btn-wrap" style="z-index: 99">
+      <li class="light btn" onclick="startAnimation()">开始</li>
+      <li class="night btn" onclick="pauseAnimation()">暂停</li>
+      <li class="night btn" onclick="resumeAnimation()">继续</li>
+      <li class="night btn" onclick="stopAnimation()">重置</li>
+    </ul>
+  </body>
+</html>
+<script type="text/javascript">
+  var map = new BMapGL.Map("allmap", {
+    style: "grayed-out",
+    displayOptions: {
+      indoor: true,
+      poiText: true,
+      poiIcon: false,
+      building: false,
+    },
+  });
+  var point = new BMapGL.Point(demo_data[0][0], demo_data[0][1]);
+
+  map.centerAndZoom(point, 18);
+  map.enableScrollWheelZoom(true);
+  map.setTilt(0);
+  const control = new BMapGL.NavigationControl3D({
+    anchor: BMAP_ANCHOR_TOP_RIGHT,
+    type: BMAP_NAVIGATION_CONTROL_LARGE,
+  });
+  const scaleControl = new BMapGL.ScaleControl({
+    anchor: BMAP_ANCHOR_BOTTOM_LEFT,
+  });
+  const zoomControl = new BMapGL.ZoomControl({
+    anchor: BMAP_ANCHOR_TOP_RIGHT,
+  });
+  map.addControl(control);
+  map.addControl(scaleControl);
+  map.addControl(zoomControl);
+
+  var track = new Track.View(map, {
+    lineLayerOptions: {
+      style: {
+        strokeWeight: 8,
+        strokeLineJoin: "round",
+        strokeLineCap: "round",
+      },
+    },
+  });
+
+  console.log("track :>> ", track);
+
+  var trackData = [];
+  var colorOffset = [];
+
+  console.log("demo_data :>> ", demo_data);
+  for (var item of demo_data) {
+    var point = new BMapGL.Point(item[0], item[1]);
+    var trackPoint = new Track.TrackPoint(point);
+    trackData.push(trackPoint);
+    var choose = [0.9, 0.5, 0.1];
+    var color = choose[Math.floor(Math.random() * choose.length)];
+    colorOffset.push(color);
+  }
+
+  var trackLine = new Track.LocalTrack({
+    trackPath: trackData,
+    duration: 100,
+    style: {
+      sequence: true,
+      marginLength: 32,
+      arrowColor: "#fff",
+      strokeTextureUrl:
+        "//mapopen-pub-jsapi.bj.bcebos.com/jsapiGlgeo/img/down.png",
+      strokeTextureWidth: 64,
+      strokeTextureHeight: 32,
+      traceColor: [27, 142, 236],
+    },
+  });
+
+  trackLine.on(Track.LineCodes.STATUS, (status) => {
+    switch (status) {
+      case Track.StatusCodes.PLAY:
+        console.log("status :>> ", status);
+        break;
+      case Track.StatusCodes.RESUME:
+        break;
+      case Track.StatusCodes.INIT:
+      case Track.StatusCodes.PAUSE:
+      case Track.StatusCodes.STOP:
+      case Track.StatusCodes.FINISH:
+        var box = trackLine.getBBox();
+        if (box) {
+          var bounds = [
+            new BMapGL.Point(box[0], box[1]),
+            new BMapGL.Point(box[2], box[3]),
+          ];
+          map.setViewport(bounds);
+        }
+        break;
+      default:
+        break;
+    }
+  });
+
+  track.addTrackLine(trackLine);
+  track.focusTrack(trackLine);
+
+  var movePoint = new Track.GroundPoint({
+    point: trackData[0].getPoint(),
+    rotation: 0,
+    style: {
+      url: "//mapopen-pub-jsapi.bj.bcebos.com/jsapiGlgeo/img/car.png",
+      level: 18,
+      scale: 1,
+      size: new BMapGL.Size(16, 32),
+      anchor: new BMapGL.Size(0.5, 0.5),
+    },
+  });
+  movePoint.addEventListener(Track.MapCodes.CLICK, (e) => {
+    console.log("Track.GroundPoint.click", e);
+  });
+  movePoint.addEventListener(Track.MapCodes.MOUSE_OVER, (e) => {
+    console.log("Track.GroundPoint.MOUSE_OVER", e);
+  });
+  movePoint.addEventListener(Track.MapCodes.MOUSE_OUT, (e) => {
+    console.log("Track.GroundPoint.MOUSE_OUT", e);
+  });
+  movePoint.addEventListener(Track.PointCodes.CHANGE_POINT, (e) => {});
+
+  console.log("movePoint :>> ", movePoint);
+
+  trackLine.setMovePoint(movePoint);
+
+  function startAnimation() {
+    trackLine.startAnimation();
+  }
+
+  function stopAnimation() {
+    trackLine.stopAnimation();
+  }
+  function pauseAnimation() {
+    trackLine.pauseAnimation();
+  }
+  function resumeAnimation() {
+    trackLine.resumeAnimation();
+  }
+
+  console.log("trackData :>> ", trackData);
+
+  // setInterval(() => {
+  //   var movePoint = new Track.GroundPoint({
+  //     point: trackData[index].getPoint(),
+  //     rotation: 0,
+  //     style: {
+  //       url: "//mapopen-pub-jsapi.bj.bcebos.com/jsapiGlgeo/img/car.png",
+  //       level: 18,
+  //       scale: 1,
+  //       size: new BMapGL.Size(16, 32),
+  //       anchor: new BMapGL.Size(0.5, 0.5),
+  //     },
+  //   });
+  //   trackLine.setMovePoint(movePoint);
+  //   index++;
+  // }, 1000);
+</script>

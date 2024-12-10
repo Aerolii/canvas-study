@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Document</title>
+    <script
+      type="text/javascript"
+      src="https://api.map.baidu.com/api?type=webgl&v=1.0&ak=zKkhLYJiYFNiotITdm2IQEP8AZMzLJDW"
+    ></script>
+  </head>
+  <body>
+    <div id="container" style="height: 100vh; width: 100vw"></div>
+
+    <script type="module">
+      import { mockData, simplifyRDP, translateAngle } from "./mock-data.js";
+      console.log("mockData", mockData);
+
+      // 路径颜色
+      const PATH_COLORS = [
+        "#4f46e5",
+        "#7c3aed",
+        "#f97316",
+        "#eab308",
+        "#22c55e",
+        "#c026d3",
+        "#db2777",
+        "#0d9488",
+        "#0891b2",
+        "#64748b",
+        "#71717a",
+      ];
+
+      const MAP_CONFIG = {
+        CENTER_ZOOM: 19,
+        UPDATE_INTERVAL: 1000,
+        INITIAL_DELAY: 5000,
+        DISTANCE_THRESHOLD: 0.0001,
+        HEADING_THRESHOLD: 10, // 偏转角度
+        POSITION_THRESHOLD: 1 / 4, // 位置偏移
+        OFFSET_RATIO: 1 / 6, // 偏移比例
+      };
+
+      const PATH_COLOR = {
+        pathRect: "#16a34a",
+        pathArrow: "#dc2626",
+      };
+
+      function createMarker(point) {
+        const rectSymbol = new BMapGL.SVGSymbol(
+          "M-10,-20 h20 a3,3 0 0 1 3,3 v34 a3,3 0 0 1 -3,3 h-20 a3,3 0 0 1 -3,-3 v-34 a3,3 0 0 1 3,-3 z",
+          {
+            scale: 1,
+            fillColor: PATH_COLOR.pathRect,
+            fillOpacity: 0.8,
+            strokeColor: PATH_COLOR.pathRect,
+            strokeWeight: 1,
+            anchor: new BMapGL.Size(0, -4),
+          }
+        );
+
+        const arrowSymbol = new BMapGL.SVGSymbol(
+          BMapGL.SymbolShapeType.BMap_Symbol_SHAPE_FORWARD_CLOSED_ARROW,
+          {
+            scale: 1.5,
+            fillColor: PATH_COLOR.pathArrow,
+            fillOpacity: 0.8,
+            strokeColor: PATH_COLOR.pathArrow,
+            anchor: new BMapGL.Size(0, 4),
+            strokeWeight: 4,
+          }
+        );
+
+        const rectMarker = new BMapGL.Marker(point, {
+          icon: rectSymbol,
+          enableMassClear: true,
+          enableClicking: false,
+          enableDragging: false,
+        });
+
+        const arrowMarker = new BMapGL.Marker(point, {
+          icon: arrowSymbol,
+          enableMassClear: true,
+          enableClicking: false,
+          enableDragging: false,
+        });
+
+        return { marker: arrowMarker, rectangle: rectMarker };
+      }
+
+      function createMapMarker(map, point) {
+        const { marker, rectangle } = createMarker(point);
+        map.addOverlay(rectangle);
+        map.addOverlay(marker);
+      }
+
+      function initializeMap(map) {
+        map.enableScrollWheelZoom(true);
+        map.setDisplayOptions({
+          poiIcon: false,
+          building: false,
+          indoor: false,
+          street: false,
+        });
+        const navigationControl = new BMapGL.NavigationControl3D();
+        map.addControl(navigationControl);
+      }
+
+      function updateMapView(
+        map,
+        point,
+        bounds,
+        // @ts-expect-error 类型未定义
+        center,
+        degress
+      ) {
+        const targetHeading = degress ?? 0;
+        const currentHeading = map.getHeading();
+        const headingDiff = Math.abs(targetHeading - -currentHeading);
+
+        if (
+          headingDiff > 360 ||
+          (headingDiff > MAP_CONFIG.HEADING_THRESHOLD &&
+            headingDiff < 360 - MAP_CONFIG.HEADING_THRESHOLD)
+        ) {
+          map.setHeading(-targetHeading);
+        }
+
+        const mapHeading = (-map.getHeading() * Math.PI) / 180;
+        const offsetDistance =
+          (bounds.getNorthEast().lat - bounds.getSouthWest().lat) *
+          MAP_CONFIG.OFFSET_RATIO;
+
+        const offsetLat = point.lat + offsetDistance * Math.cos(mapHeading);
+        const offsetLng = point.lng + offsetDistance * Math.sin(mapHeading);
+        const offsetPoint = { lng: offsetLng, lat: offsetLat };
+
+        const latDiff = Math.abs(point.lat - center.lat);
+        const lngDiff = Math.abs(point.lng - center.lng);
+        const latRange = Math.abs(
+          bounds.getNorthEast().lat - bounds.getSouthWest().lat
+        );
+        const lngRange = Math.abs(
+          bounds.getNorthEast().lng - bounds.getSouthWest().lng
+        );
+
+        if (
+          latDiff > latRange * MAP_CONFIG.POSITION_THRESHOLD ||
+          lngDiff > lngRange * MAP_CONFIG.POSITION_THRESHOLD
+        ) {
+          map.setCenter(offsetPoint);
+          map.setZoom(MAP_CONFIG.CENTER_ZOOM);
+        }
+
+        clearOverlays(map, BMapGL.Marker);
+      }
+
+      /**
+       * 绘制路径
+       * @param map
+       * @param tasks
+       */
+      function drawPath(map, tasks) {
+        const colors = [...PATH_COLORS];
+        while (colors.length < tasks.length) {
+          colors.push(...PATH_COLORS);
+        }
+        tasks.forEach((geo, index) => {
+          const randomColor = colors[index];
+          const coordinates = geo.coordinates.map((item) => ({
+            lng: item[0],
+            lat: item[1],
+          }));
+          const polyline = new BMapGL.Polyline(coordinates, {
+            strokeColor: randomColor,
+            strokeWeight: 4,
+            strokeOpacity: 0.8,
+            enableMassClear: false,
+          });
+          map.addOverlay(polyline);
+        });
+      }
+
+      const clearOverlays = (
+        mapInstance,
+        // @ts-expect-error 类型未定义
+        entity
+      ) => {
+        const allOverlays = mapInstance.getOverlays();
+        // @ts-expect-error 类型未定义
+        allOverlays.forEach((overlay) => {
+          if (overlay instanceof entity) {
+            mapInstance.removeOverlay(overlay);
+          }
+        });
+      };
+
+      function main() {
+        const mapInstance = new BMapGL.Map("container");
+        mapInstance.setDisplayOptions({ poiIcon: false });
+        initializeMap(mapInstance);
+
+        const pointsArray = mockData.routeLocation.geometries;
+        drawPath(
+          mapInstance,
+          pointsArray.map((geo) => geo)
+        );
+
+        const destroy = run(mapInstance);
+
+        window.addEventListener("beforeunload", () => {
+          destroy();
+          clearOverlays(mapInstance, BMapGL.Marker);
+          clearOverlays(mapInstance, BMapGL.Polyline);
+          mapInstance.destroy();
+        });
+      }
+
+      function run(mapInstance) {
+        let index = 0;
+        let timer = null;
+
+        const center = mockData.routeLocation.geometries[0].coordinates[index];
+        console.log("center", center);
+
+        mapInstance.centerAndZoom(
+          { lng: center[0], lat: center[1] },
+          MAP_CONFIG.CENTER_ZOOM
+        );
+
+        timer = setInterval(() => {
+          const line = mockData.routeLocation.geometries[0].coordinates;
+          if (index < line.length - 1) {
+            const point = line[index];
+            index += 10;
+
+            const bounds = mapInstance.getBounds();
+            const center = mapInstance.getCenter();
+            // 生成90到95度之间的随机浮点数
+            const direction = 180 + Math.random() * 1;
+            const degress = translateAngle(direction);
+            const currentPoint = new BMapGL.Point(point[0], point[1]);
+
+            updateMapView(
+              mapInstance,
+              { lng: point[0], lat: point[1] },
+              bounds,
+              center,
+              degress
+            );
+            createMapMarker(mapInstance, currentPoint);
+          } else {
+            // 当索引超出数组长度时，清理定时器
+            clearInterval(timer);
+            timer = null;
+          }
+        }, 1000);
+
+        return () => {
+          if (timer) {
+            clearInterval(timer);
+            timer = null;
+          }
+        };
+      }
+
+      main();
+    </script>
+  </body>
+</html>

@@ -1,0 +1,16 @@
+html,
+body,
+#container {
+  height: 100vh;
+  width: 100vw;
+  background-color: red;
+}
+
+.input-card .btn {
+  margin-right: 1.2rem;
+  width: 9rem;
+}
+
+.input-card .btn:last-child {
+  margin-right: 0;
+}

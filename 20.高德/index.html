@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>高德地图旋转示例</title>
+    <script src="https://webapi.amap.com/maps?v=2.0&key=b77bf0da499fe52e183607eb3d01697b"></script>
+    <style>
+      #mapContainer {
+        width: 100%;
+        height: 500px;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="mapContainer"></div>
+    <button onclick="rotateMap()">旋转地图</button>
+    <script>
+      // 初始化地图
+      const map = new AMap.Map("mapContainer", {
+        zoom: 14,
+        center: [116.397428, 39.90923], // 天安门坐标
+        rotateEnable: true, // 启用旋转功能
+        rotation: 0, // 初始旋转角度为0
+      });
+
+      // 旋转地图的函数
+      function rotateMap() {
+        let currentRotation = map.getRotation(); // 获取当前角度
+        let newRotation = (currentRotation + 45) % 360; // 每次旋转45度
+        map.setRotation(newRotation);
+      }
+    </script>
+  </body>
+</html>

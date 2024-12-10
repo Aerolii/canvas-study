@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <meta name="viewport" content="initial-scale=1.0, user-scalable=no" />
+    <style type="text/css">
+      body,
+      html {
+        width: 100%;
+        height: 100%;
+        margin: 0;
+      }
+
+      #allmap {
+        height: 100%;
+        width: 100%;
+      }
+
+      ul li {
+        list-style: none;
+      }
+
+      .btn-wrap {
+        z-index: 999;
+        position: fixed;
+        bottom: 3.5rem;
+        margin-left: 3rem;
+        padding: 1rem 1rem;
+        border-radius: 0.25rem;
+        background-color: #fff;
+        box-shadow: 0 2px 6px 0 rgba(27, 142, 236, 0.5);
+      }
+
+      .btn {
+        width: 75px;
+        height: 30px;
+        float: left;
+        background-color: #fff;
+        color: rgba(27, 142, 236, 1);
+        font-size: 14px;
+        border: 1px solid rgba(27, 142, 236, 1);
+        border-radius: 5px;
+        margin: 0 5px;
+        text-align: center;
+        line-height: 30px;
+      }
+
+      .btn:hover {
+        background-color: rgba(27, 142, 236, 0.8);
+        color: #fff;
+      }
+    </style>
+    <script
+      type="text/javascript"
+      src="//api.map.baidu.com/api?type=webgl&v=1.0&ak=zKkhLYJiYFNiotITdm2IQEP8AZMzLJDW"
+    ></script>
+    <script src="https://unpkg.com/three@0.126.0/build/three.min.js"></script>
+    <script src="https://unpkg.com/three@0.126.0/examples/js/loaders/GLTFLoader.js"></script>
+    <script
+      type="text/javascript"
+      src="https://unpkg.com/@bmapgl-plugin/track"
+    ></script>
+    <script
+      type="text/javascript"
+      src="//mapopen-pub-jsapi.bj.bcebos.com/jsapiGlgeo/track.js"
+    ></script>
+    <title>LiveTrack</title>
+  </head>
+
+  <body>
+    <div id="allmap"></div>
+    <ul class="btn-wrap" style="z-index: 99">
+      <li class="light btn" onclick="startAnimation()">开始</li>
+      <li class="night btn" onclick="pauseAnimation()">暂停</li>
+      <li class="night btn" onclick="resumeAnimation()">继续</li>
+      <li class="night btn" onclick="stopAnimation()">重置</li>
+    </ul>
+  </body>
+</html>
+<script type="text/javascript">
+  var map = new BMapGL.Map("allmap", {
+    style: "grayed-out",
+    displayOptions: {
+      indoor: false,
+      poiText: false,
+      poiIcon: false,
+      building: false,
+    },
+  });
+  var point = new BMapGL.Point(demo_data[0][0], demo_data[0][1]);
+
+  map.centerAndZoom(point, 18);
+  map.enableScrollWheelZoom(true);
+  map.setTilt(35);
+
+  var track = new Track.View(map, {
+    lineLayerOptions: {
+      style: {
+        strokeWeight: 8,
+        strokeLineJoin: "round",
+        strokeLineCap: "round",
+      },
+    },
+  });
+
+  var trackData = [];
+  var colorOffset = [];
+  for (var item of demo_data) {
+    var point = new BMapGL.Point(item[0], item[1]);
+    var trackPoint = new Track.TrackPoint(point);
+    trackData.push(trackPoint);
+    // 不同速度区间对应颜色
+    var choose = [0.9, 0.5, 0.1];
+    var color = choose[Math.floor(Math.random() * choose.length)];
+    colorOffset.push(color);
+  }
+  var startMarker = new BMapGL.Marker(trackData[0].getPoint(), {
+    icon: new BMapGL.Icon(
+      "https://mapopen-pub-jsapi.bj.bcebos.com/jsapiGlgeo/img/start.png",
+      new BMapGL.Size(25, 40)
+    ),
+    offset: new BMapGL.Size(0, -16),
+  });
+  map.addOverlay(startMarker);
+
+  var duration = 1000;
+
+  var step = duration / trackData.length;
+
+  var trackRoad = new Track.LiveTrack({
+    // visible: false,
+    duration: step,
+    linearTexture: [
+      [0, "#f45e0c"],
+      [0.5, "#f6cd0e"],
+      [1, "#2ad61d"],
+    ],
+    guideStyle: {
+      style: {
+        traceDisappear: false,
+        traceStart: true,
+        sequence: true,
+        marginLength: 32,
+        arrowColor: "#fff",
+        strokeColor: "rgba(27, 142, 236, 1)",
+        strokeTextureUrl:
+          "https://mapopen-pub-jsapi.bj.bcebos.com/jsapiGlgeo/img/down.png",
+        strokeTextureWidth: 64,
+        strokeTextureHeight: 32,
+      },
+    },
+  });
+
+  trackRoad.setGuidTrackPath(trackData);
+  // trackRoad.on(Track.LineCodes.GUIDE_STATUS, (e) => {
+  //   if (e.status === Track.GuidCodes.ADD_TO_MAP) {
+  //     var guidTrack = trackRoad.getGuidTrack();
+  //     guidTrack.on(Track.LineCodes.STATUS, (status) => {
+  //       switch (status) {
+  //         case Track.StatusCodes.FINISH:
+  //           var box = trackRoad.getBBox();
+  //           if (box) {
+  //             var bounds = [
+  //               new BMapGL.Point(box[0], box[1]),
+  //               new BMapGL.Point(box[2], box[3]),
+  //             ];
+  //             map.setViewport(bounds);
+  //           }
+  //           break;
+  //         default:
+  //           break;
+  //       }
+  //     });
+  //   }
+  // });
+
+  track.addTrackLine(trackRoad);
+  // track.focusTrack(trackRoad);
+
+  var ani;
+  var start = null;
+  var index = 0;
+  var finishIndex = 0;
+  let path = [trackData[0].getPoint(), trackData[1].getPoint()];
+  const polyline = new BMapGL.Polyline(path);
+  console.log("polyline.getPath()", polyline.getPath());
+
+  function startAnimation(timestamp) {
+    if (!start) start = timestamp;
+    var progress = timestamp - start;
+    var next = step * (index - finishIndex);
+    path.push(trackData[index].getPoint());
+    if (progress > next) {
+      if (index < trackData.length) {
+        index++;
+        path.push(trackData[index].getPoint());
+
+        // movePoint.moveTo(trackData[index]);
+        // var obj = trackRoad.getGuidTrack().getStepInfoByIndex(index);
+        // trackRoad.setGradientColors(colorOffset.slice(0, index + 1));
+      } else {
+        pauseAnimation();
+      }
+    }
+    ani = requestAnimationFrame(startAnimation);
+  }
+
+  function stopAnimation() {
+    pauseAnimation();
+    index = 0;
+    finishIndex = index;
+
+    start = null;
+    trackRoad.clearTrackPoint();
+    movePoint.setPoint(trackData[0].getPoint());
+    movePoint.setRotation(trackRoad.getGuidTrack().getStepInfoByIndex(0).angle);
+  }
+  function pauseAnimation() {
+    cancelAnimationFrame(ani);
+    finishIndex = index;
+    start = null;
+  }
+  function resumeAnimation() {
+    startAnimation();
+  }
+</script>
